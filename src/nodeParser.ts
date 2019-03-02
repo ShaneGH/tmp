@@ -70,7 +70,7 @@ type PropertyType =
 
 type Property = {
     name: string,
-    type: PropertyType
+    type: PropertyType[]
 };
 
 type Type = {
@@ -97,12 +97,42 @@ function tryGetNameFromTypeKeyword(propType: ts.Node) : PropertyKeyword | null{
     }
 }
 
-function buildPropertyType(propType: ts.Node, sourceFile: ts.SourceFile): PropertyType | null {
+function buildPropertyType(propType: ts.Node, sourceFile: ts.SourceFile): PropertyType[] | null {
     var keyword = tryGetNameFromTypeKeyword(propType);
-    if (keyword) return keyword;
+    if (keyword) return [keyword];
 
     if (propType.kind === ts.SyntaxKind.TypeLiteral) {
-        return getProperties(propType, sourceFile);
+        return [getProperties(propType, sourceFile)];
+    }
+
+    if (propType.kind === ts.SyntaxKind.UnionType) {
+        const children = propType.getChildren();
+        if (children.length !== 1 || children[0].kind != ts.SyntaxKind.SyntaxList) {
+            throw new Error("TODO: cannot understand union type 1");
+        }
+
+        let unionTypes: PropertyType[] = [];
+        const unionParts = children[0].getChildren();
+        for (var i = 0; i < unionParts.length; i++) {
+            const t = buildPropertyType(unionParts[i], sourceFile);
+            if (!t) {
+                print(children[0]);
+                throw new Error("TODO: cannot understand union type 2");
+            }
+
+            unionTypes = unionTypes.concat(t);
+
+            i++;
+            if (i < unionParts.length && unionParts[i].kind !== ts.SyntaxKind.BarToken) {
+                throw new Error("TODO: cannot understand union type 3");
+            }
+        }
+
+        if (!unionTypes.length) {
+            throw new Error("TODO: cannot understand union type 4");
+        }
+
+        return unionTypes;
     }
 
     return null;

@@ -28,32 +28,38 @@ describe("nodeParser", function () {
 
             it("should parse string properties", () => {
                 ps[0].name.should.equal("prop1");
-                ps[0].type.should.equal("string");
+                ps[0].type.length.should.equal(1);
+                ps[0].type[0].should.equal("string");
             });
 
             it("should parse number properties", () => {
                 ps[1].name.should.equal("prop2");
-                ps[1].type.should.equal("number");
+                ps[1].type.length.should.equal(1);
+                ps[1].type[0].should.equal("number");
             });
 
             it("should parse boolean properties", () => {
                 ps[2].name.should.equal("prop3");
-                ps[2].type.should.equal("boolean");
+                ps[2].type.length.should.equal(1);
+                ps[2].type[0].should.equal("boolean");
             });
 
             it("should parse any properties", () => {
                 ps[3].name.should.equal("prop4");
-                ps[3].type.should.equal("any");
+                ps[3].type.length.should.equal(1);
+                ps[3].type[0].should.equal("any");
             });
 
             it("should parse null properties", () => {
                 ps[4].name.should.equal("prop5");
-                ps[4].type.should.equal("null");
+                ps[4].type.length.should.equal(1);
+                ps[4].type[0].should.equal("null");
             });
 
             it("should parse undefined properties", () => {
                 ps[5].name.should.equal("prop6");
-                ps[5].type.should.equal("undefined");
+                ps[5].type.length.should.equal(1);
+                ps[5].type[0].should.equal("undefined");
             });
         });
 
@@ -73,21 +79,24 @@ describe("nodeParser", function () {
                 it("should parse complex property", () => {
                     ps[0].name.should.equal("prop1");
                     chai.assert.equal(ps[0].type.constructor, Array);
-                    (<nodeParser.PropertyWrapper[]>ps[0].type).length.should.equal(2);
+                    (<nodeParser.PropertyWrapper[][]>ps[0].type).length.should.equal(1);
+                    (<nodeParser.PropertyWrapper[][]>ps[0].type)[0].length.should.equal(2);
                 });
 
                 describe("should parse inner properties", () => {
 
-                    const innerT = ps[0].type as nodeParser.PropertyWrapper[];
+                    const innerT = (ps[0].type as nodeParser.PropertyWrapper[][])[0];
 
                     it("should parse string properties", () => {
                         innerT[0].property.name.should.equal("prop2");
-                        innerT[0].property.type.should.equal("string");
+                        innerT[0].property.type.length.should.equal(1);
+                        innerT[0].property.type[0].should.equal("string");
                     });
 
                     it("should parse number properties", () => {
                         innerT[1].property.name.should.equal("prop3");
-                        innerT[1].property.type.should.equal("number");
+                        innerT[1].property.type.length.should.equal(1);
+                        innerT[1].property.type[0].should.equal("number");
                     });
                 });
             });
@@ -123,7 +132,8 @@ describe("nodeParser", function () {
             it("should parse first property", () => {
                 types[1].properties.length.should.equal(1);
                 (types[1].properties[0] as nodeParser.Property).name.should.equal("prop1");
-                (types[1].properties[0] as nodeParser.Property).type.should.equal("string");
+                (types[1].properties[0] as nodeParser.Property).type.length.should.equal(1);
+                (types[1].properties[0] as nodeParser.Property).type[0].should.equal("string");
 
             });
         });
@@ -151,7 +161,7 @@ describe("nodeParser", function () {
         runForTypeAlias("undefined");
     });
 
-    function inheritance (type: "class" | "interface") { 
+    function inheritance (type: "class" | "interface") {
         describe(type + " inheritance", function () {
 
             const file = createFile(`${type} My1 { prop1: string }\n${type} My2 extends My1 { prop2: number }`);
@@ -170,13 +180,43 @@ describe("nodeParser", function () {
 
                 props.length.should.equal(2);
                 props[0].name.should.equal("prop1");
-                props[0].type.should.equal("string");
+                props[0].type.length.should.equal(1);
+                props[0].type[0].should.equal("string");
                 props[1].name.should.equal("prop2");
-                props[1].type.should.equal("number");
+                props[1].type.length.should.equal(1);
+                props[1].type[0].should.equal("number");
             });
         });
     }
 
     inheritance("class");
     inheritance("interface");
+
+    describe("Union types", function () {
+
+        const file = createFile(`interface My1 { prop1: string | number | null | undefined }`);
+        const types = nodeParser.parser(file);
+
+        it("should parse type", () => {
+            types.length.should.equal(1);
+            types[0].name.should.equal("My1");
+        });
+
+        const inherited = types[0];
+
+        it("should have the correct properties", () => {
+            const props = inherited.properties as nodeParser.Property[];
+
+            props.length.should.equal(1);
+            props[0].name.should.equal("prop1");
+            props[0].type.length.should.equal(4);
+            props[0].type[0].should.equal("string");
+            props[0].type[1].should.equal("number");
+            props[0].type[2].should.equal("null");
+            props[0].type[3].should.equal("undefined");
+        });
+    });
+
+    // TODO: enums, nested unions 1: x | y | (z | w), nested unions 2: x | y, where y is (z | w), more parenthesis: (x), ((x))
+    // and && types for all union types
 });
