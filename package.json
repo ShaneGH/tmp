@@ -1,0 +1,23 @@
+{
+  "name": "typescript-ast",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha \"./code/tests/**/*.js\"",
+    "build": "node \"./node_modules/typescript/lib/tsc.js\"",
+    "build-and-test": "npm run build && npm run test"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "@types/node": "^11.9.6",
+    "@types/typescript": "^2.0.0",
+    "chai": "^4.2.0",
+    "mocha": "^6.0.2",
+    "typescript": "^3.3.3333"
+  },
+  "dependencies": {}
+}

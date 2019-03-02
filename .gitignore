@@ -1,0 +1,6 @@
+# Auto gen files
+dist/
+testBin/
+
+.vscode/
+node_modules/
