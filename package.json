@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "mocha \"./code/tests/**/*.js\"",
+    "test": "mocha \"./test/**/*.js\"",
     "build": "node \"./node_modules/typescript/lib/tsc.js\"",
     "build-and-test": "npm run build && npm run test"
   },
