@@ -103,6 +103,7 @@ describe("nodeParser", function () {
     });
 
     describe("types", function () {
+        
         runForDeclaration("type MyType = ", "MyType");
 
         describe(`should parse type alias`, function () {
@@ -120,7 +121,6 @@ describe("nodeParser", function () {
             });
 
             it("should parse first property", () => {
-                console.log((types[1].properties[0] as nodeParser.Property).type);
                 types[1].properties.length.should.equal(1);
                 (types[1].properties[0] as nodeParser.Property).name.should.equal("prop1");
                 (types[1].properties[0] as nodeParser.Property).type.should.equal("string");
@@ -150,4 +150,33 @@ describe("nodeParser", function () {
         runForTypeAlias("null");
         runForTypeAlias("undefined");
     });
+
+    function inheritance (type: "class" | "interface") { 
+        describe(type + " inheritance", function () {
+
+            const file = createFile(`${type} My1 { prop1: string }\n${type} My2 extends My1 { prop2: number }`);
+            const types = nodeParser.parser(file);
+
+            it("should parse types", () => {
+                types.length.should.equal(2);
+                types[0].name.should.equal("My1");
+                types[1].name.should.equal("My2");
+            });
+
+            const inherited = types[1];
+
+            it("should have the correct properties", () => {
+                const props = inherited.properties as nodeParser.Property[];
+
+                props.length.should.equal(2);
+                props[0].name.should.equal("prop1");
+                props[0].type.should.equal("string");
+                props[1].name.should.equal("prop2");
+                props[1].type.should.equal("number");
+            });
+        });
+    }
+
+    inheritance("class");
+    inheritance("interface");
 });
