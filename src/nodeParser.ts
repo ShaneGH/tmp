@@ -48,6 +48,10 @@ class ExternalReference {
     constructor(public reference: string) { }
 }
 
+class PropertyWrapper {
+    constructor(public property: Property) { }
+}
+
 type PropertyKeyword =
     "string" 
     | "number"
@@ -61,8 +65,8 @@ type PropertyType =
     // | "Date" 
     // | "Regexp" 
     // | Function  // constructor
-    | Property[]
-    | ExternalReference;
+    | PropertyWrapper[]
+//    | ExternalReference;
 
 type Property = {
     name: string,
@@ -126,14 +130,14 @@ function buildProperty(prop: ts.Node, sourceFile: ts.SourceFile): Property {
     throw new Error(`Invalid property: ${prop.getFullText(sourceFile)} ${ts.SyntaxKind[prop.kind]}`);
 };
 
-function getProperties(node: ts.Node, sourceFile: ts.SourceFile): Property[] {
+function getProperties(node: ts.Node, sourceFile: ts.SourceFile): PropertyWrapper[] {
     
     if (!isSupportedInPropertyList(node)) {
         throw new Error(`Node ${ts.SyntaxKind[node.kind]} is not supported.`);
     }
 
     if (isProperty(node)) {
-        return [buildProperty(node, sourceFile)];
+        return [new PropertyWrapper(buildProperty(node, sourceFile))];
     }
 
     return node.getChildren()
@@ -244,22 +248,24 @@ function parser (file: ts.SourceFile): Type[] {
 
                 return {
                     name: x.name,
-                    properties: getProperties(type.node, file)
+                    properties: getProperties(type.node, file).map(x => x.property)
                 };
             }
 
-            let extendsProps: Property[] = [];
+            let extendsProps: PropertyWrapper[] = [];
             const extn = getExtends(x.node);
             if (extn) {
                 const type = findType(extn, types);
                 if (!type) throw new Error("TODO: cannot find type with alias XXX");
 
-                extendsProps = getProperties(type.node, file)
+                extendsProps = getProperties(type.node, file);
             }
 
             return {
                 name: x.name,
-                properties: extendsProps.concat(getProperties(x.node, file))
+                properties: extendsProps
+                    .concat(getProperties(x.node, file))
+                    .map(x => x.property)
             };
         });
 }
@@ -270,5 +276,6 @@ export {
     Property,
     PropertyKeyword,
     PropertyType,
+    PropertyWrapper,
     Type
 }

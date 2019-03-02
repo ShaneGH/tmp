@@ -73,21 +73,21 @@ describe("nodeParser", function () {
                 it("should parse complex property", () => {
                     ps[0].name.should.equal("prop1");
                     chai.assert.equal(ps[0].type.constructor, Array);
-                    (<nodeParser.Property[]>ps[0].type).length.should.equal(2);
+                    (<nodeParser.PropertyWrapper[]>ps[0].type).length.should.equal(2);
                 });
 
                 describe("should parse inner properties", () => {
 
-                    const innerT = ps[0].type as nodeParser.Property[];
+                    const innerT = ps[0].type as nodeParser.PropertyWrapper[];
 
                     it("should parse string properties", () => {
-                        innerT[0].name.should.equal("prop2");
-                        innerT[0].type.should.equal("string");
+                        innerT[0].property.name.should.equal("prop2");
+                        innerT[0].property.type.should.equal("string");
                     });
 
                     it("should parse number properties", () => {
-                        innerT[1].name.should.equal("prop3");
-                        innerT[1].type.should.equal("number");
+                        innerT[1].property.name.should.equal("prop3");
+                        innerT[1].property.type.should.equal("number");
                     });
                 });
             });
