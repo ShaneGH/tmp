@@ -19,5 +19,7 @@
     "mocha": "^6.0.2",
     "typescript": "^3.3.3333"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@phenomnomnominal/tsquery": "^3.0.0"
+  }
 }

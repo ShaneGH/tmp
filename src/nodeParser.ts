@@ -1,4 +1,5 @@
 import * as ts from 'typescript';
+import { tsquery } from '@phenomnomnominal/tsquery';
 
 function pad(text: string, pad: number) {
     var p = "";
@@ -21,11 +22,6 @@ function indexOf(parent: ts.Node, child: ts.Node) {
     return -1;
 }
 
-const isType = (node: ts.Node) =>
-    node.kind == ts.SyntaxKind.InterfaceDeclaration
-        || node.kind == ts.SyntaxKind.ClassDeclaration
-        || node.kind == ts.SyntaxKind.TypeAliasDeclaration;
-
 const isSupportedInPropertyList = (node: ts.Node) =>
     node.kind != ts.SyntaxKind.UnionType
         && node.kind != ts.SyntaxKind.FunctionType;
@@ -38,10 +34,8 @@ type NamedTypeNode = { node: ts.Node, name: string };
     
 function getTypes(node: ts.Node): NamedTypeNode[] {
 
-    return node
-        .getChildren()
-        .map(c => isType(c) ? [{ node: c, name: getName(c) }] : getTypes(c))
-        .reduce((x, s) => x.concat(s), []);
+    return tsquery(node, "InterfaceDeclaration, ClassDeclaration, TypeAliasDeclaration")
+        .map(x => ({ node: x, name: getName(x) }));
 }
 
 class ExternalReference {
