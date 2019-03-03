@@ -217,6 +217,16 @@ describe("nodeParser", function () {
         });
     });
 
-    // TODO: enums, nested unions 1: x | y | (z | w), nested unions 2: x | y, where y is (z | w), more parenthesis: (x), ((x))
-    // and && types for all union types
+    // TODO: https://www.typescriptlang.org/docs/handbook/advanced-types.html 
+    // enums, nested unions 1: x | y | (z | w), nested unions 2: x | y, where y is (z | w), more parenthesis: (x), ((x))
+    // and & types for all union types
+    // mixed & and | types (where & always has precedence)
+    // generics
+    // string literal types ("val1" | "val2")
+    // number literal
+    // bool literal
+    // enum literals?
+    // access modifiers (public, private, readonly, static)
+    // dictionaries (also readonly dictionaries)
+    // conditional types
 });
