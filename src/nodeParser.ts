@@ -91,12 +91,12 @@ function tryGetNameFromTypeKeyword(propType: ts.Node) : PropertyKeyword | null{
     }
 }
 
-function buildPropertyType(propType: ts.Node, sourceFile: ts.SourceFile): PropertyType[] | null {
+function buildPropertyType(propType: ts.Node): PropertyType[] | null {
     var keyword = tryGetNameFromTypeKeyword(propType);
     if (keyword) return [keyword];
 
     if (propType.kind === ts.SyntaxKind.TypeLiteral) {
-        return [getProperties(propType, sourceFile)];
+        return [getProperties(propType)];
     }
 
     if (propType.kind === ts.SyntaxKind.UnionType) {
@@ -108,7 +108,7 @@ function buildPropertyType(propType: ts.Node, sourceFile: ts.SourceFile): Proper
         let unionTypes: PropertyType[] = [];
         const unionParts = children[0].getChildren();
         for (var i = 0; i < unionParts.length; i++) {
-            const t = buildPropertyType(unionParts[i], sourceFile);
+            const t = buildPropertyType(unionParts[i]);
             if (!t) {
                 print(children[0]);
                 throw new Error("TODO: cannot understand union type 2");
@@ -132,16 +132,16 @@ function buildPropertyType(propType: ts.Node, sourceFile: ts.SourceFile): Proper
     return null;
 }
 
-function buildProperty(prop: ts.Node, sourceFile: ts.SourceFile): Property {
+function buildProperty(prop: ts.Node): Property {
 
     var parts = prop.getChildren();
     if (parts.length < 2 
         || parts[0].kind != ts.SyntaxKind.Identifier) {
-        throw new Error(`Invalid property: ${prop.getFullText(sourceFile)} ${ts.SyntaxKind[prop.kind]}`);
+        throw new Error(`Invalid property: ${prop.getFullText(prop.getSourceFile())} ${ts.SyntaxKind[prop.kind]}`);
     }
 
     for (var i = 1; i < parts.length; i++) {
-        const t = buildPropertyType(parts[i], sourceFile);
+        const t = buildPropertyType(parts[i]);
 
         if (t) {
             return {
@@ -151,21 +151,21 @@ function buildProperty(prop: ts.Node, sourceFile: ts.SourceFile): Property {
         }
     }
     
-    throw new Error(`Invalid property: ${prop.getFullText(sourceFile)} ${ts.SyntaxKind[prop.kind]}`);
+    throw new Error(`Invalid property: ${prop.getFullText()} ${ts.SyntaxKind[prop.kind]}`);
 };
 
-function getProperties(node: ts.Node, sourceFile: ts.SourceFile): PropertyWrapper[] {
+function getProperties(node: ts.Node): PropertyWrapper[] {
     
     if (!isSupportedInPropertyList(node)) {
         throw new Error(`Node ${ts.SyntaxKind[node.kind]} is not supported.`);
     }
 
     if (isProperty(node)) {
-        return [new PropertyWrapper(buildProperty(node, sourceFile))];
+        return [new PropertyWrapper(buildProperty(node))];
     }
 
     return node.getChildren()
-        .map(x => getProperties(x, sourceFile))
+        .map(x => getProperties(x))
         .reduce((s, x) => s.concat(x), []);
 }
 
@@ -183,7 +183,8 @@ function tryGetName(node: ts.Node): string[] {
 
 function getName(node: ts.Node): string {
     const names = tryGetName(node);
-    if (!names.length) throw new Error("TODO: can't find class name/interface name etc....")
+    if (!names.length) throw new Error("TODO: can't find class name/interface name etc....");
+
     return names[0];
 }
 
@@ -252,46 +253,47 @@ function getExtends(node: ts.Node): string | null {
     return identifier ? identifier.getFullText().trim() : null;
 }
 
+function buildType(type: NamedTypeNode, allTypes: NamedTypeNode[]): Type {
+    const typeKeyword = findTypeKeyword(type.node);
+    if (typeKeyword) {
+        return {
+            name: type.name,
+            properties: typeKeyword
+        };
+    }
+
+    var typeAlias = getTypeAliasName(type.node);
+    if (typeAlias) {
+        const t = findType(typeAlias, allTypes);
+        if (!t) throw new Error("TODO: cannot find type with alias XXX");
+
+        return {
+            name: type.name,
+            properties: getProperties(t.node).map(x => x.property)
+        };
+    }
+
+    let extendsProps: PropertyWrapper[] = [];
+    const extn = getExtends(type.node);
+    if (extn) {
+        const type = findType(extn, allTypes);
+        if (!type) throw new Error("TODO: cannot find type with alias XXX");
+
+        extendsProps = getProperties(type.node);
+    }
+
+    return {
+        name: type.name,
+        properties: extendsProps
+            .concat(getProperties(type.node))
+            .map(x => x.property)
+    };
+}
+
 function parser (file: ts.SourceFile): Type[] {
     const types = getTypes(file);
     return types
-        .map(x => {
-
-            const typeKeyword = findTypeKeyword(x.node);
-            if (typeKeyword) {
-                return {
-                    name: x.name,
-                    properties: typeKeyword
-                };
-            }
-
-            var typeAlias = getTypeAliasName(x.node);
-            if (typeAlias) {
-                const type = findType(typeAlias, types);
-                if (!type) throw new Error("TODO: cannot find type with alias XXX");
-
-                return {
-                    name: x.name,
-                    properties: getProperties(type.node, file).map(x => x.property)
-                };
-            }
-
-            let extendsProps: PropertyWrapper[] = [];
-            const extn = getExtends(x.node);
-            if (extn) {
-                const type = findType(extn, types);
-                if (!type) throw new Error("TODO: cannot find type with alias XXX");
-
-                extendsProps = getProperties(type.node, file);
-            }
-
-            return {
-                name: x.name,
-                properties: extendsProps
-                    .concat(getProperties(x.node, file))
-                    .map(x => x.property)
-            };
-        });
+        .map(x => buildType(x, types));
 }
 
 export {

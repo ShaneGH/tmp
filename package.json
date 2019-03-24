@@ -12,6 +12,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/chai": "^4.1.7",
+    "@types/lodash": "^4.14.123",
     "@types/mocha": "^5.2.6",
     "@types/node": "^11.9.6",
     "@types/typescript": "^2.0.0",
@@ -20,6 +21,7 @@
     "typescript": "^3.3.3333"
   },
   "dependencies": {
-    "@phenomnomnominal/tsquery": "^3.0.0"
+    "@phenomnomnominal/tsquery": "^3.0.0",
+    "lodash": "^4.17.11"
   }
 }
