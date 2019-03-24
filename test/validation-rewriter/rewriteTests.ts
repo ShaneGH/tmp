@@ -37,6 +37,13 @@ describe("rewriter", function () {
             printer.printFile(result.file).should.equal("import * as vvv from 'ts-validator';\r\nvvv.validator('hello', \"testFile.ts?1\");\r\n");
         });
             
+        it("should retain type signature", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator<string>('hello');");
+            const result = rewriter.rewrite(file);
+
+            printer.printFile(result.file).should.equal("import { validator } from 'ts-validator';\r\nvalidator<string>('hello', \"testFile.ts?1\");\r\n");
+        });
+            
         it("should not rewrite unrelated functions", () => {
             const file = createFile("import { validator as val } from 'ts-validator';\nvalidator('hello');");
             const result = rewriter.rewrite(file);
@@ -66,15 +73,81 @@ describe("rewriter", function () {
         });
     });
 
-    // describe("compile type tests", function () {
+    describe("compile type literal and keyword tests", function () {
             
-    //     it("should record string literal type", () => {
-    //         const file = createFile("import { validator } from 'ts-validator';\nvalidator<string>('hello');");
-    //         const result = rewriter.rewrite(file);
+        it("should record string literal type", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator('hello');");
+            const result = rewriter.rewrite(file);
 
-    //         printer.printFile(result.file).should.equal("import { validator } from 'ts-validator';\r\nvalidator('hello', \"testFile.ts?1\");\r\n");
-    //     });
-    // });
+            result.typeKeys["testFile.ts?1"].name.should.equal("string");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("string");
+        });
+            
+        it("should record number type", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator(10);");
+            const result = rewriter.rewrite(file);
+
+            result.typeKeys["testFile.ts?1"].name.should.equal("number");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("number");
+        });
+            
+        it("should record true type", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator(true);");
+            const result = rewriter.rewrite(file);
+
+            result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("boolean");
+        });
+            
+        it("should record false type", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator(false);");
+            const result = rewriter.rewrite(file);
+
+            result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("boolean");
+        });
+            
+        it("should record null type", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator(null);");
+            const result = rewriter.rewrite(file);
+
+            result.typeKeys["testFile.ts?1"].name.should.equal("null");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("null");
+        });
+            
+        it("should record undefined type", () => {
+            const file = createFile("import { validator } from 'ts-validator';\nvalidator(undefined);");
+            const result = rewriter.rewrite(file);
+
+            result.typeKeys["testFile.ts?1"].name.should.equal("undefined");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("undefined");
+        });
+    });
+
+    describe("compile variable type tests", function () {
+            
+        it("should compile type when type is built in", () => {
+            const file = createFile(`import { validator } from 'ts-validator';
+let x: string = "hi";
+validator(x);`);
+            const result = rewriter.rewrite(file);
+
+            result.typeKeys["testFile.ts?1"].name.should.equal("string");
+            result.typeKeys["testFile.ts?1"].properties.should.equal("string");
+        });
+    });
+
+    /* TODO:
+validator(someValue)
+validator({})
+validator({} as string)
+validator([])
+validator(new Date())
+validator(/sdsd/)
+validator(<string>{}) cast
+validator(<SomeTsxTag></SomeTsxTag>)
+
+     */
 
     // describe("generic test", function () {
             

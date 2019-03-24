@@ -1,104 +1,125 @@
 import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as nodeParser from '../src/nodeParser';
+import { tsquery } from '@phenomnomnominal/tsquery';
 
 chai.should();
 
 describe("nodeParser", function () {
-    function createFile(text: string) {
+    function pad(text: string, pad: number) {
+        var p = "";
+        for (var i = 0; i < pad; i++) p += "  ";
 
+        return text.split("\n").map(x => pad + "-" + p + x).join("\n");
+    }
+
+    function print(node: ts.Node, recurse = true, level = 0) {
+        console.log(pad(ts.SyntaxKind[node.kind] + ": " + node.getFullText(), level));
+        if (recurse) node.getChildren().map(x => print(x, recurse, level + 1));
+    }
+
+    function createFile(text: string) {
         return ts.createSourceFile(
             'testFile.ts', text, ts.ScriptTarget.ES2015, true, ts.ScriptKind.TS
         );
     }
 
+    function resolveType(code: string, typeName: string) {
+        const file = createFile(code + "\nvar t: " + typeName + ";");
+        const variableTypes = tsquery<ts.TypeReferenceNode>(file, "VariableDeclaration TypeReference");
+        if (!variableTypes.length) {
+            print(file);
+            throw new Error("Could not find variable.");
+        }
+
+        const type = nodeParser.resolveType(variableTypes[variableTypes.length - 1]);
+        if (!type) {
+            print(file);
+            throw new Error("Could not resolve type.");
+        }
+
+        if (type.name !== typeName) {
+            print(file);
+            throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
+        }
+
+        return type;
+    }
+
     function runForDeclaration(classOrInterface: string, name: string) {
         
         describe("should parse simple properties from interface", function () {
-            const file = createFile(classOrInterface + "{ prop1: string; prop2: number; prop3: boolean; prop4: any; prop5: null; prop6: undefined }");
-            const types = nodeParser.parser(file);
+            const type = resolveType(classOrInterface + "{ prop1: string; prop2: number; prop3: boolean; prop4: any; prop5: null; prop6: undefined }", name);
 
             it("should parse correct name type and property length", () => {
-                types.length.should.equal(1);
-                types[0].properties.length.should.equal(6);
-                types[0].name.should.equal(name);
+                (type.properties as nodeParser.Property[]).length.should.equal(6);
+                type.name.should.equal(name);
             });
 
-            const ps = types[0].properties as nodeParser.Property[];
+            const ps = type.properties as nodeParser.Property[];
 
             it("should parse string properties", () => {
                 ps[0].name.should.equal("prop1");
-                ps[0].type.length.should.equal(1);
-                ps[0].type[0].should.equal("string");
+                ps[0].type.should.equal("string");
             });
 
             it("should parse number properties", () => {
                 ps[1].name.should.equal("prop2");
-                ps[1].type.length.should.equal(1);
-                ps[1].type[0].should.equal("number");
+                ps[1].type.should.equal("number");
             });
 
             it("should parse boolean properties", () => {
                 ps[2].name.should.equal("prop3");
-                ps[2].type.length.should.equal(1);
-                ps[2].type[0].should.equal("boolean");
+                ps[2].type.should.equal("boolean");
             });
 
             it("should parse any properties", () => {
                 ps[3].name.should.equal("prop4");
-                ps[3].type.length.should.equal(1);
-                ps[3].type[0].should.equal("any");
+                ps[3].type.should.equal("any");
             });
 
             it("should parse null properties", () => {
                 ps[4].name.should.equal("prop5");
-                ps[4].type.length.should.equal(1);
-                ps[4].type[0].should.equal("null");
+                ps[4].type.should.equal("null");
             });
 
             it("should parse undefined properties", () => {
                 ps[5].name.should.equal("prop6");
-                ps[5].type.length.should.equal(1);
-                ps[5].type[0].should.equal("undefined");
+                ps[5].type.should.equal("undefined");
             });
         });
 
         describe("should parse complex properties from interface", function () {
-            const file = createFile(classOrInterface + "{ prop1: { prop2: string, prop3: number } }");
-            const types = nodeParser.parser(file);
+            const type = resolveType(classOrInterface + "{ prop1: { prop2: string, prop3: number } }", name);
 
+            let firstProperty: nodeParser.Property;
             it("should parse correct type and property length", () => {
-                types.length.should.equal(1);
-                types[0].properties.length.should.equal(1);
+                (type.properties as nodeParser.Property[]).length.should.equal(1);
+                firstProperty = (type.properties as nodeParser.Property[])[0];
             });
-
-            const ps = types[0].properties as nodeParser.Property[];
 
             describe("should parse complex properties", () => {
 
                 it("should parse complex property", () => {
-                    ps[0].name.should.equal("prop1");
-                    chai.assert.equal(ps[0].type.constructor, Array);
-                    (<nodeParser.PropertyWrapper[][]>ps[0].type).length.should.equal(1);
-                    (<nodeParser.PropertyWrapper[][]>ps[0].type)[0].length.should.equal(2);
+                    firstProperty.name.should.equal("prop1");
+                    chai.assert.equal(firstProperty.type.constructor, Array);
+                    (<nodeParser.PropertyWrapper[]>firstProperty.type).length.should.equal(2);
                 });
 
                 describe("should parse inner properties", () => {
 
-                    const innerT = (ps[0].type as nodeParser.PropertyWrapper[][])[0];
-
                     it("should parse string properties", () => {
+                        const innerT = (firstProperty.type as nodeParser.PropertyWrapper[]);
                         innerT[0].property.name.should.equal("prop2");
-                        innerT[0].property.type.length.should.equal(1);
-                        innerT[0].property.type[0].should.equal("string");
+                        innerT[0].property.type.should.equal("string");
                     });
 
                     it("should parse number properties", () => {
+                        const innerT = (firstProperty.type as nodeParser.PropertyWrapper[]);
                         innerT[1].property.name.should.equal("prop3");
-                        innerT[1].property.type.length.should.equal(1);
-                        innerT[1].property.type[0].should.equal("number");
+                        innerT[1].property.type.should.equal("number");
                     });
-                });
+               });
             });
         });
     }
@@ -117,23 +138,22 @@ describe("nodeParser", function () {
 
         describe(`should parse type alias`, function () {
             
-            const file = createFile("interface MyI { prop1: string }\ntype MyT = MyI");
-            const types = nodeParser.parser(file);
+            const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT");
+            let aliasedTypeName: string;
+            let aliasedTypeProperties: nodeParser.Property[];
 
             it("should parse correct type and property length", () => {
-                types.length.should.equal(2);
-
-                types[0].name.should.equal("MyI");
-                types[0].properties.length.should.equal(1);
-                types[1].name.should.equal("MyT");
-                types[1].properties.length.should.equal(1);
+                type.name.should.equal("MyT");
+                type.properties.should.be.an.instanceOf(nodeParser.TypeWrapper);
+                aliasedTypeName = (type.properties as nodeParser.TypeWrapper).getType().name;
+                aliasedTypeProperties = (type.properties as nodeParser.TypeWrapper).getType().properties as nodeParser.Property[];
             });
 
             it("should parse first property", () => {
-                types[1].properties.length.should.equal(1);
-                (types[1].properties[0] as nodeParser.Property).name.should.equal("prop1");
-                (types[1].properties[0] as nodeParser.Property).type.length.should.equal(1);
-                (types[1].properties[0] as nodeParser.Property).type[0].should.equal("string");
+                aliasedTypeName.should.equal("MyI");
+                aliasedTypeProperties.length.should.equal(1);
+                aliasedTypeProperties[0].name.should.equal("prop1");
+                aliasedTypeProperties[0].type.should.equal("string");
 
             });
         });
@@ -141,14 +161,11 @@ describe("nodeParser", function () {
         function runForTypeAlias(aliasedType: string) {
 
             describe(`should parse type alias: ${aliasedType}`, function () {
-                const file = createFile("type MyT = " + aliasedType);
-                const types = nodeParser.parser(file);
+                const type = resolveType("type MyT = " + aliasedType, "MyT");
 
                 it("should parse correct type and property aliased value", () => {
-                    types.length.should.equal(1);
-
-                    types[0].name.should.equal("MyT");
-                    (types[0].properties as nodeParser.PropertyKeyword).should.equal(aliasedType);
+                    type.name.should.equal("MyT");
+                    (type.properties as nodeParser.PropertyKeyword).should.equal(aliasedType);
                 });
             });
         }
@@ -156,35 +173,38 @@ describe("nodeParser", function () {
         runForTypeAlias("string");
         runForTypeAlias("number");
         runForTypeAlias("boolean");
-        runForTypeAlias("any");
         runForTypeAlias("null");
         runForTypeAlias("undefined");
+        runForTypeAlias("any");
+        runForTypeAlias("never");
+        runForTypeAlias("unknown");
+        runForTypeAlias("void");
     });
 
-    function inheritance (type: "class" | "interface") {
-        describe(type + " inheritance", function () {
+    function inheritance (classOrInterface: "class" | "interface") {
+        describe(classOrInterface + " inheritance", function () {
 
-            const file = createFile(`${type} My1 { prop1: string }\n${type} My2 extends My1 { prop2: number }`);
-            const types = nodeParser.parser(file);
+            const type = resolveType(`${classOrInterface} My1 { prop1: string }\n${classOrInterface} My2 extends My1 { prop2: number }`, "My2");
 
             it("should parse types", () => {
-                types.length.should.equal(2);
-                types[0].name.should.equal("My1");
-                types[1].name.should.equal("My2");
+                type.name.should.equal("My2");
+                
+                type.extends.length.should.be.eq(1);
+                (type.extends[0] as (() => nodeParser.Type))().name.should.equal("My1");
             });
 
-            const inherited = types[1];
-
             it("should have the correct properties", () => {
-                const props = inherited.properties as nodeParser.Property[];
+                const props = type.properties as nodeParser.Property[];
 
-                props.length.should.equal(2);
-                props[0].name.should.equal("prop1");
-                props[0].type.length.should.equal(1);
-                props[0].type[0].should.equal("string");
-                props[1].name.should.equal("prop2");
-                props[1].type.length.should.equal(1);
-                props[1].type[0].should.equal("number");
+                const subTypeProps = (type.extends[0] as (() => nodeParser.Type))().properties as nodeParser.Property[];
+
+                props.length.should.equal(1);
+                props[0].name.should.equal("prop2");
+                props[0].type.should.equal("number");
+                
+                subTypeProps.length.should.equal(1);
+                subTypeProps[0].name.should.equal("prop1");
+                subTypeProps[0].type.should.equal("string");
             });
         });
     }
@@ -192,41 +212,58 @@ describe("nodeParser", function () {
     inheritance("class");
     inheritance("interface");
 
-    describe("Union types", function () {
+    describe("type recursion", () => {
+        const type = resolveType(`interface My1 { prop1: My1 }`, "My1");
 
-        const file = createFile(`interface My1 { prop1: string | number | null | undefined }`);
-        const types = nodeParser.parser(file);
-
-        it("should parse type", () => {
-            types.length.should.equal(1);
-            types[0].name.should.equal("My1");
+        it("should construct interface properly", () => {
+            type.name.should.be.eq("My1");
+            const props = type.properties as nodeParser.Property[];
+            props.length.should.be.eq(1);
+            props[0].name.should.be.eq("prop1");
+            props[0].type.constructor.should.be.eq(nodeParser.TypeWrapper);
         });
 
-        const inherited = types[0];
-
-        it("should have the correct properties", () => {
-            const props = inherited.properties as nodeParser.Property[];
-
-            props.length.should.equal(1);
-            props[0].name.should.equal("prop1");
-            props[0].type.length.should.equal(4);
-            props[0].type[0].should.equal("string");
-            props[0].type[1].should.equal("number");
-            props[0].type[2].should.equal("null");
-            props[0].type[3].should.equal("undefined");
+        it("should have the same type reference for interface and property", () => {
+            const props = type.properties as nodeParser.Property[];
+            (props[0].type as nodeParser.TypeWrapper).getType().should.be.eq(type);
         });
     });
 
-    // TODO: https://www.typescriptlang.org/docs/handbook/advanced-types.html 
-    // enums, nested unions 1: x | y | (z | w), nested unions 2: x | y, where y is (z | w), more parenthesis: (x), ((x))
-    // and & types for all union types
-    // mixed & and | types (where & always has precedence)
-    // generics
-    // string literal types ("val1" | "val2")
-    // number literal
-    // bool literal
-    // enum literals?
-    // access modifiers (public, private, readonly, static)
-    // dictionaries (also readonly dictionaries)
-    // conditional types
+    // describe("Union types", function () {
+
+    //     const file = createFile(`interface My1 { prop1: string | number | null | undefined }`);
+    //     const types = nodeParser.resolveType(file);
+
+    //     it("should parse type", () => {
+    //         types.length.should.equal(1);
+    //         types[0].name.should.equal("My1");
+    //     });
+
+    //     const inherited = types[0];
+
+    //     it("should have the correct properties", () => {
+    //         const props = inherited.properties as nodeParser.Property[];
+
+    //         props.length.should.equal(1);
+    //         props[0].name.should.equal("prop1");
+    //         props[0].type.length.should.equal(4);
+    //         props[0].type[0].should.equal("string");
+    //         props[0].type[1].should.equal("number");
+    //         props[0].type[2].should.equal("null");
+    //         props[0].type[3].should.equal("undefined");
+    //     });
+    // });
+
+    // // TODO: https://www.typescriptlang.org/docs/handbook/advanced-types.html 
+    // // enums, nested unions 1: x | y | (z | w), nested unions 2: x | y, where y is (z | w), more parenthesis: (x), ((x))
+    // // and & types for all union types
+    // // mixed & and | types (where & always has precedence)
+    // // generics
+    // // string literal types ("val1" | "val2")
+    // // number literal
+    // // bool literal
+    // // enum literals?
+    // // access modifiers (public, private, readonly, static)
+    // // dictionaries (also readonly dictionaries)
+    // // conditional types
 });

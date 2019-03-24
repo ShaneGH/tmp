@@ -1,9 +1,10 @@
 import * as ts from "typescript";
 import { tsquery } from '@phenomnomnominal/tsquery';
-import { Type } from '../nodeParser';
+import { Type } from '../nodeParser2';
 import * as _ from 'lodash';
 import {isAncestor} from "../utils/astUtils";
 import {compareArrays} from "../utils/arrayUtils";
+import { resolveType } from "../nodeParser2";
 
 const moduleName = "ts-validator";
 const functionName = "validator";
@@ -22,8 +23,7 @@ function print(node: ts.Node, recurse = true, level = 0) {
 
 type RewriteOutput = {
     file: ts.SourceFile,
-    requiredReferences: string[],
-    privateTypes: { name: string, definition: Type }[]
+    typeKeys: TypeKeys
 }
 
 class ImportGroupNode {
@@ -189,9 +189,7 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode) {
             imports: _.flatMap(x.imports, getReferenceToValidateFunction)
         }))
         .filter(x => !!x.imports.length)
-        .map(x => tsquery(x.group.groupNode, "CallExpression")
-            .map(c => ts.isCallExpression(c) ? c : <ts.CallExpression><any>null)
-            .filter(c => !!c)
+        .map(x => tsquery<ts.CallExpression>(x.group.groupNode, "CallExpression")
             .filter(call => {
 
                 let propertyParts: string[] = [];
@@ -212,24 +210,27 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode) {
 }
 
 function getValidationType(node: ts.CallExpression) {
-    if (node.typeArguments && node.typeArguments.length) {
+    if (!node.arguments || !node.arguments.length) {
+        throw new Error(`${node.getText()} is not a call to ${functionName}(...).`);
     }
+
+    return resolveType(node.arguments[0]);
 }
 
-type TypeKeys = {[key: string]: string}
-const tr = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string) => <T extends ts.Node>(context: ts.TransformationContext) => (rootNode: T) => {
+type TypeKeys = {[key: string]: Type}
+const transform = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string) => <T extends ts.Node>(context: ts.TransformationContext) => (rootNode: T) => {
 
     // todo: ensure illegal character
     // todo: ensure it is a relative path
     relativePath += "?";
     let iKey = 0;
 
-    function createKey() {
+    function createKey(node: ts.CallExpression) {
 
         while (keys[relativePath + (++iKey)]) ;
 
         const key = relativePath + iKey;
-        keys[key] = "Whatever the type is";
+        keys[key] = getValidationType(node);
 
         return ts.createLiteral(key);
     }
@@ -246,8 +247,6 @@ const tr = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: st
             throw new Error(`Cannot parse expression ${node.getText()}`);
         }
 
-        const type = getValidationType(node);
-
         if (node.arguments.length === 2) {
             const secondArg = node.arguments[1];
             if (!ts.isStringLiteral(secondArg)) {
@@ -255,7 +254,7 @@ const tr = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: st
             }
 
             if (secondArg.text.startsWith(relativePath) && !keys[secondArg.text]) {
-                keys[secondArg.text] = "Whatever the type is";
+                keys[secondArg.text] = getValidationType(node);
                 return node;
             }
         }
@@ -264,7 +263,7 @@ const tr = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: st
         return ts.createCall(
             node.expression, 
             node.typeArguments, 
-            [node.arguments[0], createKey()]);
+            [node.arguments[0], createKey(node)]);
     }
 
     return ts.visitNode(rootNode, visit)
@@ -275,7 +274,7 @@ function rewrite(file: ts.SourceFile): RewriteOutput {
     const functionCalls = getValidateFunctionNodes(importGroups);
 
     const keys: TypeKeys = {};
-    const result: ts.TransformationResult<ts.SourceFile> = ts.transform<ts.SourceFile>(file, [tr(functionCalls, keys, file.fileName)]);
+    const result: ts.TransformationResult<ts.SourceFile> = ts.transform<ts.SourceFile>(file, [transform(functionCalls, keys, file.fileName)]);
     if (result.transformed.length !== 1) {
         throw new Error(`Unknown transform result count. Expected 1, got ${result.transformed.length}`);
     }
@@ -284,8 +283,7 @@ function rewrite(file: ts.SourceFile): RewriteOutput {
 
     return {
         file: result.transformed[0],
-        requiredReferences: [],
-        privateTypes: []
+        typeKeys: keys
     };
 }
 
