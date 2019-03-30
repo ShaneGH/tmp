@@ -181,6 +181,19 @@ describe("nodeParser", function () {
         runForTypeAlias("void");
     });
 
+    describe("type ids", function () {
+        const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT");
+
+        it("should parse correct type and property length", () => {
+            type.name.should.equal("MyT");
+            type.id.should.equal("31-46, testFile.ts");
+            
+            type.extends.length.should.equal(1);
+            type.extends[0].getType().name.should.equal("MyI");
+            type.extends[0].getType().id.should.equal("0-31, testFile.ts");
+        });
+    });
+
     function inheritance (classOrInterface: "class" | "interface") {
         describe(classOrInterface + " inheritance", function () {
 

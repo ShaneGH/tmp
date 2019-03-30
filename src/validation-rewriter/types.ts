@@ -63,6 +63,7 @@ type Property = {
 
 type Type = {
     name: string,
+    id: string,
     properties: Property[] | PropertyKeyword
     extends: TypeWrapper[]
 };
@@ -170,7 +171,7 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
     const existing = dictionary.tryGet(node);
     if (existing) return existing;
         
-    return dictionary.tryAdd(node, function () {
+    return dictionary.tryAdd(node, function (id) {
 
         const extendesInterfaces: ts.Identifier[] = [];
         if (node.heritageClauses) {
@@ -197,7 +198,8 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
 
         // https://github.com/ShaneGH/ts-validator/issues/13
         return {
-            name: name,
+            name,
+            id,
             properties: getProperties(node, dictionary).map(x => x.property),
             extends: extendesInterfaces.map(x => new TypeWrapper(resolveTypeWithNullError(x, dictionary)))
         };
@@ -209,11 +211,12 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
     const existing = dictionary.tryGet(node);
     if (existing) return existing;
         
-    return dictionary.tryAdd(node, function () {
+    return dictionary.tryAdd(node, function (id) {
 
         if (ts.isTypeLiteralNode(node.type)) {
             return {
-                name: name,
+                id,
+                name,
                 properties: getProperties(node.type, dictionary).map(x => x.property),
                 extends: []
             };
@@ -224,13 +227,15 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
             }
 
             return {
-                name: name,
+                id,
+                name,
                 properties: [],
                 extends: [new TypeWrapper(result)]
             };
         } else if (propertyKeywords[node.type.kind]) {
             return {
-                name: name,
+                id,
+                name,
                 properties: propertyKeywords[node.type.kind],
                 extends: []
             };
@@ -255,7 +260,7 @@ propertyKeywords[ts.SyntaxKind.VoidKeyword] = "void";
 class TypeDictionary {
     private values: {[key: string]: () => Type} = {}
 
-    tryAdd(typeDefinitionNode: ts.Node, value: () => Type) {
+    tryAdd(typeDefinitionNode: ts.Node, value: (key: string) => Type) {
         const key = buildNodeKey(typeDefinitionNode);
         if (this.values[key]) {
             return this.values[key];
@@ -263,7 +268,7 @@ class TypeDictionary {
 
         let val: Type | null = null;
         return this.values[key] = function () {
-            return val || (val = value());
+            return val || (val = value(key));
         };
     }
 
@@ -279,6 +284,7 @@ class TypeDictionary {
 function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary): (() => Type) | null {
     if (propertyKeywords[type.kind]) {
         return () => ({
+            id: propertyKeywords[type.kind],
             name: propertyKeywords[type.kind],
             properties: propertyKeywords[type.kind],
             extends: []

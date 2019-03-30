@@ -60,6 +60,7 @@ function findVariableDeclaration(variable: ts.Identifier) {
 function resolveType(expr: ts.Expression): Type {
     if (propertyKeywords[expr.kind]) {
         return {
+            id: propertyKeywords[expr.kind],
             name: propertyKeywords[expr.kind],
             properties: propertyKeywords[expr.kind],
             extends: []
@@ -71,6 +72,7 @@ function resolveType(expr: ts.Expression): Type {
         if (expr.escapedText.toString() === "undefined") {
             return {
                 name: propertyKeywords[ts.SyntaxKind.UndefinedKeyword],
+                id: propertyKeywords[ts.SyntaxKind.UndefinedKeyword],
                 properties: propertyKeywords[ts.SyntaxKind.UndefinedKeyword],
                 extends: []
             };
