@@ -65,7 +65,7 @@ type Type = {
     name: string,
     // TODO: remove TypeWrapper from here and add to Extends
     properties: Property[] | PropertyKeyword | TypeWrapper
-    extends: (Type | (() => Type))[]
+    extends: (() => Type)[]
 };
 
 function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary): PropertyWrapper {
@@ -157,7 +157,7 @@ function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.
     return node.members.map(x => getPropertyForClassOrInterface(x, dictionary));
 }
 
-function resolveTypeAndThrowError(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary): Type | (() => Type) {
+function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary): () => Type {
     const t = resolveType(type, dictionary);
     if (!t) {
         throw new Error(`Cannot resolve type for ${type.getText()}`);
@@ -200,7 +200,7 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
         return {
             name: name,
             properties: getProperties(node, dictionary).map(x => x.property),
-            extends: extendesInterfaces.map(x => resolveTypeAndThrowError(x, dictionary))
+            extends: extendesInterfaces.map(x => resolveTypeWithNullError(x, dictionary))
         };
     });
 }
