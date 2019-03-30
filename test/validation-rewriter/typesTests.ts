@@ -144,9 +144,9 @@ describe("nodeParser", function () {
 
             it("should parse correct type and property length", () => {
                 type.name.should.equal("MyT");
-                type.properties.should.be.an.instanceOf(types.TypeWrapper);
-                aliasedTypeName = (type.properties as types.TypeWrapper).getType().name;
-                aliasedTypeProperties = (type.properties as types.TypeWrapper).getType().properties as types.Property[];
+                type.extends.length.should.be.eq(1);
+                aliasedTypeName = type.extends[0]().name;
+                aliasedTypeProperties = type.extends[0]().properties as types.Property[];
             });
 
             it("should parse first property", () => {
@@ -253,17 +253,4 @@ describe("nodeParser", function () {
     //         props[0].type[3].should.equal("undefined");
     //     });
     // });
-
-    // // TODO: https://www.typescriptlang.org/docs/handbook/advanced-types.html 
-    // // enums, nested unions 1: x | y | (z | w), nested unions 2: x | y, where y is (z | w), more parenthesis: (x), ((x))
-    // // and & types for all union types
-    // // mixed & and | types (where & always has precedence)
-    // // generics
-    // // string literal types ("val1" | "val2")
-    // // number literal
-    // // bool literal
-    // // enum literals?
-    // // access modifiers (public, private, readonly, static)
-    // // dictionaries (also readonly dictionaries)
-    // // conditional types
 });

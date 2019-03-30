@@ -219,8 +219,7 @@ function getValidationType(node: ts.CallExpression) {
 type TypeKeys = {[key: string]: Type}
 const transform = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string) => <T extends ts.Node>(context: ts.TransformationContext) => (rootNode: T) => {
 
-    // todo: ensure illegal character
-    // todo: ensure it is a relative path
+    // https://github.com/ShaneGH/ts-validator/issues/15
     relativePath += "?";
     let iKey = 0;
 

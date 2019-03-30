@@ -137,7 +137,7 @@ validator(x);`);
         });
     });
 
-    /* TODO:
+    /* // https://github.com/ShaneGH/ts-validator/issues/7
 validator(someValue)
 validator({})
 validator({} as string)

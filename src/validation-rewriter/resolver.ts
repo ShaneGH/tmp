@@ -51,14 +51,13 @@ function findVariableDeclaration(variable: ts.Identifier) {
                 continue;
             }
             
-            // TODO
+            // TODO: what code would cause this case?
             throw new Error(`Binding patterns are not supported: ${x.getText()}`);
         }
     });
 }
 
 function resolveType(expr: ts.Expression): Type {
-    // TODO: node might be: getSomething() (from validate call validate(getSomething()))
     if (propertyKeywords[expr.kind]) {
         return {
             name: propertyKeywords[expr.kind],
@@ -88,11 +87,9 @@ function resolveType(expr: ts.Expression): Type {
                 return t;
             }
 
-            throw new Error("TODO: declarations with implicit type");
+            throw new Error("TODO: https://github.com/ShaneGH/ts-validator/issues/7");
         }
         
-        // TODO: object might be from function arg
-        // TODO: object might be from import statement
         throw new Error(`Cannot find declaration of object: ${expr.getFullText()}`);
     }
 

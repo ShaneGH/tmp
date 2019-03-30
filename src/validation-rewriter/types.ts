@@ -63,8 +63,7 @@ type Property = {
 
 type Type = {
     name: string,
-    // TODO: remove TypeWrapper from here and add to Extends
-    properties: Property[] | PropertyKeyword | TypeWrapper
+    properties: Property[] | PropertyKeyword
     extends: (() => Type)[]
 };
 
@@ -190,13 +189,13 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
                         throw new Error(`Generics are not supported yet ${type.expression.getText()}`);
                     }
 
-                    // TODO: what does "T extends x.U" look like
+                    // https://github.com/ShaneGH/ts-validator/issues/16
                     extendesInterfaces.push(type.expression);
                 }
             }
         }
 
-        // TODO: if class declaration, try get constructor
+        // https://github.com/ShaneGH/ts-validator/issues/13
         return {
             name: name,
             properties: getProperties(node, dictionary).map(x => x.property),
@@ -226,8 +225,8 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
 
             return {
                 name: name,
-                properties: new TypeWrapper(result),
-                extends: []
+                properties: [],
+                extends: [result]
             };
         } else if (propertyKeywords[node.type.kind]) {
             return {
@@ -292,7 +291,8 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
     } else if  (ts.isTypeReferenceNode(type)) {
         name = type.typeName;
     } else {
-        throw new Error('TODO: type is indexedAccessType (var tt: yy["vv"] = 7');
+        // https://github.com/ShaneGH/ts-validator/issues/16
+        throw new Error(`Unsupported type: ${type.getText()}.`);
     }
     
     const typeName = ts.isIdentifier(name)
@@ -310,7 +310,8 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
             }
         }) || null;
     } else {
-        throw new Error("TODO: var t: x.y");
+        // https://github.com/ShaneGH/ts-validator/issues/16
+        throw new Error(`Unsupported type: ${type.getText()}.`);
     }
 }
 
