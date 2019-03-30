@@ -60,32 +60,32 @@ describe("nodeParser", function () {
 
             it("should parse string properties", () => {
                 ps[0].name.should.equal("prop1");
-                ps[0].type.should.equal("string");
+                ps[0].type.should.equal(types.PropertyKeyword.string);
             });
 
             it("should parse number properties", () => {
                 ps[1].name.should.equal("prop2");
-                ps[1].type.should.equal("number");
+                ps[1].type.should.equal(types.PropertyKeyword.number);
             });
 
             it("should parse boolean properties", () => {
                 ps[2].name.should.equal("prop3");
-                ps[2].type.should.equal("boolean");
+                ps[2].type.should.equal(types.PropertyKeyword.boolean);
             });
 
             it("should parse any properties", () => {
                 ps[3].name.should.equal("prop4");
-                ps[3].type.should.equal("any");
+                ps[3].type.should.equal(types.PropertyKeyword.any);
             });
 
             it("should parse null properties", () => {
                 ps[4].name.should.equal("prop5");
-                ps[4].type.should.equal("null");
+                ps[4].type.should.equal(types.PropertyKeyword.null);
             });
 
             it("should parse undefined properties", () => {
                 ps[5].name.should.equal("prop6");
-                ps[5].type.should.equal("undefined");
+                ps[5].type.should.equal(types.PropertyKeyword.undefined);
             });
         });
 
@@ -102,22 +102,22 @@ describe("nodeParser", function () {
 
                 it("should parse complex property", () => {
                     firstProperty.name.should.equal("prop1");
-                    chai.assert.equal(firstProperty.type.constructor, Array);
-                    (<types.PropertyWrapper[]>firstProperty.type).length.should.equal(2);
+                    chai.assert.equal(firstProperty.type.constructor, types.PropertiesWrapper);
+                    (<types.PropertiesWrapper>firstProperty.type).properties.length.should.equal(2);
                 });
 
                 describe("should parse inner properties", () => {
 
                     it("should parse string properties", () => {
-                        const innerT = (firstProperty.type as types.PropertyWrapper[]);
-                        innerT[0].property.name.should.equal("prop2");
-                        innerT[0].property.type.should.equal("string");
+                        const innerT = (firstProperty.type as types.PropertiesWrapper);
+                        innerT.properties[0].name.should.equal("prop2");
+                        innerT.properties[0].type.should.equal(types.PropertyKeyword.string);
                     });
 
                     it("should parse number properties", () => {
-                        const innerT = (firstProperty.type as types.PropertyWrapper[]);
-                        innerT[1].property.name.should.equal("prop3");
-                        innerT[1].property.type.should.equal("number");
+                        const innerT = (firstProperty.type as types.PropertiesWrapper);
+                        innerT.properties[1].name.should.equal("prop3");
+                        innerT.properties[1].type.should.equal(types.PropertyKeyword.number);
                     });
                });
             });
@@ -145,40 +145,40 @@ describe("nodeParser", function () {
             it("should parse correct type and property length", () => {
                 type.name.should.equal("MyT");
                 type.extends.length.should.be.eq(1);
-                aliasedTypeName = type.extends[0].getType().name;
-                aliasedTypeProperties = type.extends[0].getType().properties as types.Property[];
+                aliasedTypeName = (type.extends[0] as types.TypeWrapper).getType().name;
+                aliasedTypeProperties = (type.extends[0] as types.TypeWrapper).getType().properties as types.Property[];
             });
 
             it("should parse first property", () => {
                 aliasedTypeName.should.equal("MyI");
                 aliasedTypeProperties.length.should.equal(1);
                 aliasedTypeProperties[0].name.should.equal("prop1");
-                aliasedTypeProperties[0].type.should.equal("string");
+                aliasedTypeProperties[0].type.should.equal(types.PropertyKeyword.string);
 
             });
         });
 
-        function runForTypeAlias(aliasedType: string) {
+        function runForTypeAlias(aliasedType: types.PropertyKeyword) {
 
-            describe(`should parse type alias: ${aliasedType}`, function () {
-                const type = resolveType("type MyT = " + aliasedType, "MyT");
+            describe(`should parse type alias: ${aliasedType.keyword}`, function () {
+                const type = resolveType("type MyT = " + aliasedType.keyword, "MyT");
 
                 it("should parse correct type and property aliased value", () => {
                     type.name.should.equal("MyT");
-                    (type.properties as types.PropertyKeyword).should.equal(aliasedType);
+                    (type.extends[0] as types.PropertyKeyword).should.equal(aliasedType);
                 });
             });
         }
 
-        runForTypeAlias("string");
-        runForTypeAlias("number");
-        runForTypeAlias("boolean");
-        runForTypeAlias("null");
-        runForTypeAlias("undefined");
-        runForTypeAlias("any");
-        runForTypeAlias("never");
-        runForTypeAlias("unknown");
-        runForTypeAlias("void");
+        runForTypeAlias(types.PropertyKeyword.string);
+        runForTypeAlias(types.PropertyKeyword.number);
+        runForTypeAlias(types.PropertyKeyword.boolean);
+        runForTypeAlias(types.PropertyKeyword.null);
+        runForTypeAlias(types.PropertyKeyword.undefined);
+        runForTypeAlias(types.PropertyKeyword.any);
+        runForTypeAlias(types.PropertyKeyword.never);
+        runForTypeAlias(types.PropertyKeyword.unknown);
+        runForTypeAlias(types.PropertyKeyword.void);
     });
 
     describe("type ids", function () {
@@ -189,8 +189,8 @@ describe("nodeParser", function () {
             type.id.should.equal("31-46, testFile.ts");
             
             type.extends.length.should.equal(1);
-            type.extends[0].getType().name.should.equal("MyI");
-            type.extends[0].getType().id.should.equal("0-31, testFile.ts");
+            (type.extends[0] as types.TypeWrapper).getType().name.should.equal("MyI");
+            (type.extends[0] as types.TypeWrapper).getType().id.should.equal("0-31, testFile.ts");
         });
     });
 
@@ -203,21 +203,21 @@ describe("nodeParser", function () {
                 type.name.should.equal("My2");
                 
                 type.extends.length.should.be.eq(1);
-                type.extends[0].getType().name.should.equal("My1");
+                (type.extends[0] as types.TypeWrapper).getType().name.should.equal("My1");
             });
 
             it("should have the correct properties", () => {
                 const props = type.properties as types.Property[];
 
-                const subTypeProps = type.extends[0].getType().properties as types.Property[];
+                const subTypeProps = (type.extends[0] as types.TypeWrapper).getType().properties as types.Property[];
 
                 props.length.should.equal(1);
                 props[0].name.should.equal("prop2");
-                props[0].type.should.equal("number");
+                props[0].type.should.equal(types.PropertyKeyword.number);
                 
                 subTypeProps.length.should.equal(1);
                 subTypeProps[0].name.should.equal("prop1");
-                subTypeProps[0].type.should.equal("string");
+                subTypeProps[0].type.should.equal(types.PropertyKeyword.string);
             });
         });
     }

@@ -1,6 +1,7 @@
 import * as ts from 'typescript';
 import { tsquery } from '@phenomnomnominal/tsquery';
 import { visitNodesInScope } from '../utils/astUtils';
+import { LazyDictionary } from '../utils/lazyDictionary';
 
 function pad(text: string, pad: number) {
     var p = "";
@@ -14,20 +15,16 @@ function print(node: ts.Node, recurse = true, level = 0) {
     if (recurse) node.getChildren().map(x => print(x, recurse, level + 1));
 }
 
-function buildNodeKey(node: ts.Node) {
-    return `${node.pos}-${node.end}, ${node.getSourceFile().fileName}`;
-}
-
 class ExternalReference {
     constructor(public reference: string) { }
 }
 
-class PropertyWrapper {
-    constructor(public property: Property) { }
+class PropertiesWrapper {
+    constructor(public properties: Property[]) { }
 }
 
 class TypeWrapper {
-    constructor(private type: Type | (() => Type)) { }
+    constructor(private type: () => Type) { }
 
     getType() {
         return this.type instanceof Function
@@ -36,23 +33,26 @@ class TypeWrapper {
     }
 }
 
-type PropertyKeyword =
-    "string" 
-    | "number"
-    | "boolean" 
-    | "any" 
-    | "null" 
-    | "undefined" 
-    | "unknown" 
-    | "never" 
-    | "void" 
+class PropertyKeyword {
+    private constructor(public keyword: string) {}
+
+    static string = new PropertyKeyword("string") 
+    static number = new PropertyKeyword("number") 
+    static boolean = new PropertyKeyword("boolean") 
+    static any = new PropertyKeyword("any") 
+    static null = new PropertyKeyword("null") 
+    static undefined = new PropertyKeyword("undefined") 
+    static unknown = new PropertyKeyword("unknown") 
+    static never = new PropertyKeyword("never") 
+    static void = new PropertyKeyword("void")
+}
 
 type PropertyType = 
     PropertyKeyword
     // | "Date" 
     // | "Regexp" 
     // | Function  // constructor
-    | PropertyWrapper[]
+    | PropertiesWrapper
     | TypeWrapper
 //    | ExternalReference;
 
@@ -61,14 +61,16 @@ type Property = {
     type: PropertyType
 };
 
+type ExtendsTypes = TypeWrapper | PropertyKeyword
+
 type Type = {
     name: string,
     id: string,
-    properties: Property[] | PropertyKeyword
-    extends: TypeWrapper[]
+    properties: Property[]
+    extends: ExtendsTypes[]
 };
 
-function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary): PropertyWrapper {
+function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary): Property {
     if (!ts.isPropertySignature(node) && !ts.isPropertyDeclaration(node)) {
         throw new Error(`Member ${node.getText()} is not supported.`);
     }
@@ -76,7 +78,7 @@ function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, 
     return getProperty(node, dictionary);
 }
 
-function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictionary: TypeDictionary): PropertyWrapper {
+function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictionary: TypeDictionary): Property {
     if (!node.type) {
         throw new Error(`Member ${node.getText()} is not supported.`);
     }
@@ -86,17 +88,17 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
     }
 
     if (propertyKeywords[node.type.kind]) {
-        return new PropertyWrapper({
+        return {
             name: node.name.escapedText.toString(),
             type: propertyKeywords[node.type.kind]
-        });
+        };
     }
 
     if (ts.isTypeLiteralNode(node.type)) {
-        return new PropertyWrapper({
+        return {
             name: node.name.escapedText.toString(),
-            type: node.type.members.map(x => getPropertyForClassOrInterface(x, dictionary))
-        });
+            type: new PropertiesWrapper(node.type.members.map(x => getPropertyForClassOrInterface(x, dictionary)))
+        };
     }
 
     if (ts.isTypeReferenceNode(node.type)) {
@@ -109,10 +111,10 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
             throw new Error(`Cannot find type ${node.type.typeName.getText()} for property ${node.name.escapedText.toString()}.`);
         }
 
-        return new PropertyWrapper({
+        return {
             name: node.name.escapedText.toString(),
             type: new TypeWrapper(result)
-        });
+        };
     }
     
     throw new Error(`Member ${node.getText()} is not supported.`);
@@ -146,7 +148,7 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
         // return unionTypes;
 }
 
-function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, dictionary: TypeDictionary): PropertyWrapper[] {
+function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, dictionary: TypeDictionary): Property[] {
 
     if (ts.isInterfaceDeclaration(node)) {
         return node.members.map(x => getPropertyForClassOrInterface(x, dictionary));
@@ -167,9 +169,6 @@ function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary:
 }
 
 function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, dictionary: TypeDictionary): () => Type {
-
-    const existing = dictionary.tryGet(node);
-    if (existing) return existing;
         
     return dictionary.tryAdd(node, function (id) {
 
@@ -200,16 +199,13 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
         return {
             name,
             id,
-            properties: getProperties(node, dictionary).map(x => x.property),
+            properties: getProperties(node, dictionary),
             extends: extendesInterfaces.map(x => new TypeWrapper(resolveTypeWithNullError(x, dictionary)))
         };
     });
 }
 
 function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, dictionary: TypeDictionary): (() => Type) {
-    
-    const existing = dictionary.tryGet(node);
-    if (existing) return existing;
         
     return dictionary.tryAdd(node, function (id) {
 
@@ -217,7 +213,7 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
             return {
                 id,
                 name,
-                properties: getProperties(node.type, dictionary).map(x => x.property),
+                properties: getProperties(node.type, dictionary),
                 extends: []
             };
         } else if (ts.isTypeReferenceNode(node.type)) {
@@ -236,8 +232,8 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
             return {
                 id,
                 name,
-                properties: propertyKeywords[node.type.kind],
-                extends: []
+                properties: [],
+                extends: [propertyKeywords[node.type.kind]]
             };
         } else {
 
@@ -247,47 +243,30 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
 }
 
 const propertyKeywords: {[key: number]: PropertyKeyword} = {};
-propertyKeywords[ts.SyntaxKind.StringKeyword] = "string";
-propertyKeywords[ts.SyntaxKind.NumberKeyword] = "number";
-propertyKeywords[ts.SyntaxKind.BooleanKeyword] = "boolean";
-propertyKeywords[ts.SyntaxKind.NullKeyword] = "null";
-propertyKeywords[ts.SyntaxKind.UndefinedKeyword] = "undefined";
-propertyKeywords[ts.SyntaxKind.AnyKeyword] = "any";
-propertyKeywords[ts.SyntaxKind.NeverKeyword] = "never";
-propertyKeywords[ts.SyntaxKind.UnknownKeyword] = "unknown";
-propertyKeywords[ts.SyntaxKind.VoidKeyword] = "void";
+propertyKeywords[ts.SyntaxKind.StringKeyword] = PropertyKeyword.string;
+propertyKeywords[ts.SyntaxKind.NumberKeyword] = PropertyKeyword.number;
+propertyKeywords[ts.SyntaxKind.BooleanKeyword] = PropertyKeyword.boolean;
+propertyKeywords[ts.SyntaxKind.NullKeyword] = PropertyKeyword.null;
+propertyKeywords[ts.SyntaxKind.UndefinedKeyword] = PropertyKeyword.undefined;
+propertyKeywords[ts.SyntaxKind.AnyKeyword] = PropertyKeyword.any;
+propertyKeywords[ts.SyntaxKind.NeverKeyword] = PropertyKeyword.never;
+propertyKeywords[ts.SyntaxKind.UnknownKeyword] = PropertyKeyword.unknown;
+propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
 
-class TypeDictionary {
-    private values: {[key: string]: () => Type} = {}
-
-    tryAdd(typeDefinitionNode: ts.Node, value: (key: string) => Type) {
-        const key = buildNodeKey(typeDefinitionNode);
-        if (this.values[key]) {
-            return this.values[key];
-        }
-
-        let val: Type | null = null;
-        return this.values[key] = function () {
-            return val || (val = value(key));
-        };
-    }
-
-    tryGet(typeDefinitionNode: ts.Node) {
-        const key = buildNodeKey(typeDefinitionNode);
-        const result = this.values[key];
-        if (!result) return null;
-
-        return result;
+class TypeDictionary extends LazyDictionary<ts.Node, Type> {
+    
+    protected buildKey(key: ts.Node) {
+        return `${key.pos}-${key.end}, ${key.getSourceFile().fileName}`;
     }
 }
 
 function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary): (() => Type) | null {
     if (propertyKeywords[type.kind]) {
         return () => ({
-            id: propertyKeywords[type.kind],
-            name: propertyKeywords[type.kind],
-            properties: propertyKeywords[type.kind],
-            extends: []
+            id: propertyKeywords[type.kind].keyword,
+            name: propertyKeywords[type.kind].keyword,
+            properties: [],
+            extends: [propertyKeywords[type.kind]]
         });
     }
 
@@ -327,11 +306,12 @@ function publicResolveType(type: ts.TypeNode | ts.Identifier): Type | null {
 }
 
 export {
+    ExtendsTypes,
     ExternalReference,
     Property,
     PropertyKeyword,
     PropertyType,
-    PropertyWrapper,
+    PropertiesWrapper,
     publicResolveType as resolveType,
     Type,
     TypeWrapper

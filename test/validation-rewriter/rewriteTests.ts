@@ -1,6 +1,7 @@
 import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as rewriter from '../../src/validation-rewriter/rewrite';
+import { PropertyKeyword } from '../../src/validation-rewriter/types';
 
 chai.should();
 
@@ -80,7 +81,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("string");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.string);
         });
             
         it("should record number type", () => {
@@ -88,7 +89,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("number");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("number");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.number);
         });
             
         it("should record true type", () => {
@@ -96,7 +97,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("boolean");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.boolean);
         });
             
         it("should record false type", () => {
@@ -104,7 +105,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("boolean");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.boolean);
         });
             
         it("should record null type", () => {
@@ -112,7 +113,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("null");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("null");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.null);
         });
             
         it("should record undefined type", () => {
@@ -120,7 +121,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("undefined");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("undefined");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.undefined);
         });
     });
 
@@ -133,7 +134,7 @@ validator(x);`);
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            result.typeKeys["testFile.ts?1"].properties.should.equal("string");
+            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.string);
         });
     });
 

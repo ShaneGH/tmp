@@ -1,7 +1,7 @@
 import * as ts from 'typescript';
 import { tsquery } from '@phenomnomnominal/tsquery';
 import { visitNodesInScope } from '../utils/astUtils';
-import { resolveType as resolveTypeNode, Type } from './types';
+import { resolveType as resolveTypeNode, Type, TypeWrapper, PropertyKeyword } from './types';
 
 
 function pad(text: string, pad: number) {
@@ -16,21 +16,13 @@ function print(node: ts.Node, recurse = true, level = 0) {
     if (recurse) node.getChildren().map(x => print(x, recurse, level + 1));
 }
 
-type LiteralValueKeyword =
-    "string" 
-    | "number"
-    | "boolean" 
-    | "any" 
-    | "null" 
-    | "undefined" 
-
-const propertyKeywords: {[key: number]: LiteralValueKeyword} = {};
-propertyKeywords[ts.SyntaxKind.StringLiteral] = "string";
-propertyKeywords[ts.SyntaxKind.NumericLiteral] = "number";
-propertyKeywords[ts.SyntaxKind.TrueKeyword] = "boolean";
-propertyKeywords[ts.SyntaxKind.FalseKeyword] = "boolean";
-propertyKeywords[ts.SyntaxKind.NullKeyword] = "null";
-propertyKeywords[ts.SyntaxKind.UndefinedKeyword] = "undefined";
+const propertyKeywords: {[key: number]: PropertyKeyword} = {};
+propertyKeywords[ts.SyntaxKind.StringLiteral] = PropertyKeyword.string;
+propertyKeywords[ts.SyntaxKind.NumericLiteral] = PropertyKeyword.number;
+propertyKeywords[ts.SyntaxKind.TrueKeyword] = PropertyKeyword.boolean;
+propertyKeywords[ts.SyntaxKind.FalseKeyword] = PropertyKeyword.boolean;
+propertyKeywords[ts.SyntaxKind.NullKeyword] = PropertyKeyword.null;
+propertyKeywords[ts.SyntaxKind.UndefinedKeyword] = PropertyKeyword.undefined;
 
 // TODO: not sure how this function deals with the var
 // keyword, and multiple usages of the same word
@@ -60,10 +52,10 @@ function findVariableDeclaration(variable: ts.Identifier) {
 function resolveType(expr: ts.Expression): Type {
     if (propertyKeywords[expr.kind]) {
         return {
-            id: propertyKeywords[expr.kind],
-            name: propertyKeywords[expr.kind],
-            properties: propertyKeywords[expr.kind],
-            extends: []
+            id: propertyKeywords[expr.kind].keyword,
+            name: propertyKeywords[expr.kind].keyword,
+            properties: [],
+            extends: [propertyKeywords[expr.kind]]
         };
     }
 
@@ -71,10 +63,10 @@ function resolveType(expr: ts.Expression): Type {
         // undefined is handled a little differently
         if (expr.escapedText.toString() === "undefined") {
             return {
-                name: propertyKeywords[ts.SyntaxKind.UndefinedKeyword],
-                id: propertyKeywords[ts.SyntaxKind.UndefinedKeyword],
-                properties: propertyKeywords[ts.SyntaxKind.UndefinedKeyword],
-                extends: []
+                name: propertyKeywords[ts.SyntaxKind.UndefinedKeyword].keyword,
+                id: propertyKeywords[ts.SyntaxKind.UndefinedKeyword].keyword,
+                properties: [],
+                extends: [propertyKeywords[ts.SyntaxKind.UndefinedKeyword]]
             };
         }
 
