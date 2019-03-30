@@ -64,7 +64,7 @@ type Property = {
 type Type = {
     name: string,
     properties: Property[] | PropertyKeyword
-    extends: (() => Type)[]
+    extends: TypeWrapper[]
 };
 
 function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary): PropertyWrapper {
@@ -199,7 +199,7 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
         return {
             name: name,
             properties: getProperties(node, dictionary).map(x => x.property),
-            extends: extendesInterfaces.map(x => resolveTypeWithNullError(x, dictionary))
+            extends: extendesInterfaces.map(x => new TypeWrapper(resolveTypeWithNullError(x, dictionary)))
         };
     });
 }
@@ -226,7 +226,7 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
             return {
                 name: name,
                 properties: [],
-                extends: [result]
+                extends: [new TypeWrapper(result)]
             };
         } else if (propertyKeywords[node.type.kind]) {
             return {

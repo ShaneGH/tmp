@@ -145,8 +145,8 @@ describe("nodeParser", function () {
             it("should parse correct type and property length", () => {
                 type.name.should.equal("MyT");
                 type.extends.length.should.be.eq(1);
-                aliasedTypeName = type.extends[0]().name;
-                aliasedTypeProperties = type.extends[0]().properties as types.Property[];
+                aliasedTypeName = type.extends[0].getType().name;
+                aliasedTypeProperties = type.extends[0].getType().properties as types.Property[];
             });
 
             it("should parse first property", () => {
@@ -190,13 +190,13 @@ describe("nodeParser", function () {
                 type.name.should.equal("My2");
                 
                 type.extends.length.should.be.eq(1);
-                type.extends[0]().name.should.equal("My1");
+                type.extends[0].getType().name.should.equal("My1");
             });
 
             it("should have the correct properties", () => {
                 const props = type.properties as types.Property[];
 
-                const subTypeProps = type.extends[0]().properties as types.Property[];
+                const subTypeProps = type.extends[0].getType().properties as types.Property[];
 
                 props.length.should.equal(1);
                 props[0].name.should.equal("prop2");
