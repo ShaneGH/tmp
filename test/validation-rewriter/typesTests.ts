@@ -1,6 +1,6 @@
 import * as chai from 'chai';
 import * as ts from 'typescript';
-import * as nodeParser from '../src/nodeParser';
+import * as types from '../../src/validation-rewriter/types';
 import { tsquery } from '@phenomnomnominal/tsquery';
 
 chai.should();
@@ -32,7 +32,7 @@ describe("nodeParser", function () {
             throw new Error("Could not find variable.");
         }
 
-        const type = nodeParser.resolveType(variableTypes[variableTypes.length - 1]);
+        const type = types.resolveType(variableTypes[variableTypes.length - 1]);
         if (!type) {
             print(file);
             throw new Error("Could not resolve type.");
@@ -52,11 +52,11 @@ describe("nodeParser", function () {
             const type = resolveType(classOrInterface + "{ prop1: string; prop2: number; prop3: boolean; prop4: any; prop5: null; prop6: undefined }", name);
 
             it("should parse correct name type and property length", () => {
-                (type.properties as nodeParser.Property[]).length.should.equal(6);
+                (type.properties as types.Property[]).length.should.equal(6);
                 type.name.should.equal(name);
             });
 
-            const ps = type.properties as nodeParser.Property[];
+            const ps = type.properties as types.Property[];
 
             it("should parse string properties", () => {
                 ps[0].name.should.equal("prop1");
@@ -92,10 +92,10 @@ describe("nodeParser", function () {
         describe("should parse complex properties from interface", function () {
             const type = resolveType(classOrInterface + "{ prop1: { prop2: string, prop3: number } }", name);
 
-            let firstProperty: nodeParser.Property;
+            let firstProperty: types.Property;
             it("should parse correct type and property length", () => {
-                (type.properties as nodeParser.Property[]).length.should.equal(1);
-                firstProperty = (type.properties as nodeParser.Property[])[0];
+                (type.properties as types.Property[]).length.should.equal(1);
+                firstProperty = (type.properties as types.Property[])[0];
             });
 
             describe("should parse complex properties", () => {
@@ -103,19 +103,19 @@ describe("nodeParser", function () {
                 it("should parse complex property", () => {
                     firstProperty.name.should.equal("prop1");
                     chai.assert.equal(firstProperty.type.constructor, Array);
-                    (<nodeParser.PropertyWrapper[]>firstProperty.type).length.should.equal(2);
+                    (<types.PropertyWrapper[]>firstProperty.type).length.should.equal(2);
                 });
 
                 describe("should parse inner properties", () => {
 
                     it("should parse string properties", () => {
-                        const innerT = (firstProperty.type as nodeParser.PropertyWrapper[]);
+                        const innerT = (firstProperty.type as types.PropertyWrapper[]);
                         innerT[0].property.name.should.equal("prop2");
                         innerT[0].property.type.should.equal("string");
                     });
 
                     it("should parse number properties", () => {
-                        const innerT = (firstProperty.type as nodeParser.PropertyWrapper[]);
+                        const innerT = (firstProperty.type as types.PropertyWrapper[]);
                         innerT[1].property.name.should.equal("prop3");
                         innerT[1].property.type.should.equal("number");
                     });
@@ -140,13 +140,13 @@ describe("nodeParser", function () {
             
             const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT");
             let aliasedTypeName: string;
-            let aliasedTypeProperties: nodeParser.Property[];
+            let aliasedTypeProperties: types.Property[];
 
             it("should parse correct type and property length", () => {
                 type.name.should.equal("MyT");
-                type.properties.should.be.an.instanceOf(nodeParser.TypeWrapper);
-                aliasedTypeName = (type.properties as nodeParser.TypeWrapper).getType().name;
-                aliasedTypeProperties = (type.properties as nodeParser.TypeWrapper).getType().properties as nodeParser.Property[];
+                type.properties.should.be.an.instanceOf(types.TypeWrapper);
+                aliasedTypeName = (type.properties as types.TypeWrapper).getType().name;
+                aliasedTypeProperties = (type.properties as types.TypeWrapper).getType().properties as types.Property[];
             });
 
             it("should parse first property", () => {
@@ -165,7 +165,7 @@ describe("nodeParser", function () {
 
                 it("should parse correct type and property aliased value", () => {
                     type.name.should.equal("MyT");
-                    (type.properties as nodeParser.PropertyKeyword).should.equal(aliasedType);
+                    (type.properties as types.PropertyKeyword).should.equal(aliasedType);
                 });
             });
         }
@@ -190,13 +190,13 @@ describe("nodeParser", function () {
                 type.name.should.equal("My2");
                 
                 type.extends.length.should.be.eq(1);
-                (type.extends[0] as (() => nodeParser.Type))().name.should.equal("My1");
+                (type.extends[0] as (() => types.Type))().name.should.equal("My1");
             });
 
             it("should have the correct properties", () => {
-                const props = type.properties as nodeParser.Property[];
+                const props = type.properties as types.Property[];
 
-                const subTypeProps = (type.extends[0] as (() => nodeParser.Type))().properties as nodeParser.Property[];
+                const subTypeProps = (type.extends[0] as (() => types.Type))().properties as types.Property[];
 
                 props.length.should.equal(1);
                 props[0].name.should.equal("prop2");
@@ -217,15 +217,15 @@ describe("nodeParser", function () {
 
         it("should construct interface properly", () => {
             type.name.should.be.eq("My1");
-            const props = type.properties as nodeParser.Property[];
+            const props = type.properties as types.Property[];
             props.length.should.be.eq(1);
             props[0].name.should.be.eq("prop1");
-            props[0].type.constructor.should.be.eq(nodeParser.TypeWrapper);
+            props[0].type.constructor.should.be.eq(types.TypeWrapper);
         });
 
         it("should have the same type reference for interface and property", () => {
-            const props = type.properties as nodeParser.Property[];
-            (props[0].type as nodeParser.TypeWrapper).getType().should.be.eq(type);
+            const props = type.properties as types.Property[];
+            (props[0].type as types.TypeWrapper).getType().should.be.eq(type);
         });
     });
 

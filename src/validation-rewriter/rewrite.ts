@@ -1,10 +1,9 @@
 import * as ts from "typescript";
 import { tsquery } from '@phenomnomnominal/tsquery';
-import { Type } from '../nodeParser2';
 import * as _ from 'lodash';
 import {isAncestor} from "../utils/astUtils";
 import {compareArrays} from "../utils/arrayUtils";
-import { resolveType } from "../nodeParser2";
+import { resolveType, Type } from "./resolver";
 
 const moduleName = "ts-validator";
 const functionName = "validator";

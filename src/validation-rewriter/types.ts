@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { tsquery } from '@phenomnomnominal/tsquery';
-import { visitNodesInScope } from './utils/astUtils';
+import { visitNodesInScope } from '../utils/astUtils';
 
 function pad(text: string, pad: number) {
     var p = "";

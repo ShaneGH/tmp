@@ -1,7 +1,7 @@
 import * as ts from 'typescript';
 import { tsquery } from '@phenomnomnominal/tsquery';
-import { visitNodesInScope } from './utils/astUtils';
-import { resolveType as resolveTypeNode, Type } from './nodeParser';
+import { visitNodesInScope } from '../utils/astUtils';
+import { resolveType as resolveTypeNode, Type } from './types';
 
 
 function pad(text: string, pad: number) {
