@@ -3,7 +3,8 @@ import { tsquery } from '@phenomnomnominal/tsquery';
 import * as _ from 'lodash';
 import {isAncestor} from "../utils/astUtils";
 import {compareArrays} from "../utils/arrayUtils";
-import { resolveType, Type } from "./resolver";
+import { resolveType } from "./resolver";
+import { Type } from "./types";
 
 const moduleName = "ts-validator";
 const functionName = "validator";

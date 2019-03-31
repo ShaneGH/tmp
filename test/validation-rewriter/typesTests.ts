@@ -46,8 +46,9 @@ describe("nodeParser", function () {
         }
 
         if (!testSerializer) return type;
-        
-        const t = _(deserialize(serialize([type])).enumerate())
+
+        const ser = JSON.parse(JSON.stringify(serialize([type])));
+        const t = _(deserialize(ser).enumerate())
             .filter(x => x.value.name === typeName)
             .map(x => x.value)
             .first();

@@ -91,6 +91,5 @@ function resolveType(expr: ts.Expression): Type {
 }
 
 export {
-    resolveType,
-    Type
+    resolveType
 }

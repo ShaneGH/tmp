@@ -2,7 +2,6 @@ import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as types from '../../src/validation-rewriter/types';
 import { tsquery } from '@phenomnomnominal/tsquery';
-import _ = require('lodash');
 import { validate, CompilerArgs } from '../../src/validator/validate';
 
 chai.should();

@@ -150,21 +150,19 @@ function serializeType (results: Dict<SerializableType>, current: Type) {
 }
 
 function serialize(t: Type[]) {
-    const done = t.reduce(serializeType, {} as Dict<SerializableType>);
-    return JSON.stringify(done);
+    return t.reduce(serializeType, {} as Dict<SerializableType>);
 }
 
-function deserialize(json: string): TypeDictionary {
+function deserialize(input: Dict<SerializableType>): TypeDictionary {
     const output = new TypeDictionary();
-    const deserialized = JSON.parse(json) as Dict<SerializableType>;
     Object
-        .keys(deserialized)
-        .forEach(x => deserializeTypeAndAddToResults(output, deserialized[x]));
+        .keys(input)
+        .forEach(x => deserializeTypeAndAddToResults(output, input[x]));
 
     return output;
 }
 
 export {
-    serialize,
-    deserialize
+    deserialize,
+    serialize
 }
