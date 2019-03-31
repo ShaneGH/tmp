@@ -64,7 +64,7 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
 
     const writer = new CodeWriter();
     
-    writer.writeLine("import { CompilerArgs, deserialize, validate as validateInternal } from 'ts-validator'");
+    writer.writeLine("import { CompilerArgs, deserialize, SerializableType, validate as validateInternal } from 'ts-validator'");
 
     writer.writeLine();
     writer.writeLine(`const serializableTypes: {[key: string]: SerializableType} = {`);
