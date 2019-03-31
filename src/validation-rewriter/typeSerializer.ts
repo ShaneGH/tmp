@@ -46,7 +46,7 @@ const serializableTypeIdUtils = buildWrapperType<string>();
 const serializablePropertyKeywordUtils = buildWrapperType<SerializablePropertyKeyword>();
 const serializablePropertyWrapperUtils = buildWrapperType<SerializableProperty[]>();
 
-type SerializableExtendsTypes = WrapperKind<string> | WrapperKind<PropertyKeyword>
+type SerializableExtendsTypes = WrapperKind<string> | WrapperKind<SerializablePropertyKeyword>
 
 type SerializableType = {
     name: string,
@@ -90,13 +90,12 @@ function deserializePropertyType(results: TypeDictionary, p: SerializablePropert
 }
 
 function serializeExtends(results: Dict<SerializableType>, current: ExtendsTypes): SerializableExtendsTypes {
-    console.log(current);
     if (current instanceof TypeWrapper) {
         serializeTypeAndAddToResults(results, current.getType());
         return serializableTypeIdUtils.build(current.getType().id);
     }
 
-    return serializablePropertyKeywordUtils.build(current);
+    return serializablePropertyKeywordUtils.build({ keyword: current.keyword});
 }
 
 function deserializeExtends(results: TypeDictionary, current: SerializableExtendsTypes): ExtendsTypes {
