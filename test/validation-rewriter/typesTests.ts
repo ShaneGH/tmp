@@ -2,6 +2,8 @@ import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as types from '../../src/validation-rewriter/types';
 import { tsquery } from '@phenomnomnominal/tsquery';
+import { deserialize, serialize } from '../../src/validation-rewriter/typeSerializer';
+import _ = require('lodash');
 
 chai.should();
 
@@ -24,7 +26,7 @@ describe("nodeParser", function () {
         );
     }
 
-    function resolveType(code: string, typeName: string) {
+    function resolveType(code: string, typeName: string, testSerializer = true) {
         const file = createFile(code + "\nvar t: " + typeName + ";");
         const variableTypes = tsquery<ts.TypeReferenceNode>(file, "VariableDeclaration TypeReference");
         if (!variableTypes.length) {
@@ -43,7 +45,16 @@ describe("nodeParser", function () {
             throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
         }
 
-        return type;
+        if (!testSerializer) return type;
+        
+        const t = _(deserialize(serialize([type])).enumerate())
+            .filter(x => x.value.name === typeName)
+            .map(x => x.value)
+            .first();
+
+        if (!t) throw Error(`Could not find type: ${typeName} in deserialized values.`);
+
+        return t;
     }
 
     function runForDeclaration(classOrInterface: string, name: string) {

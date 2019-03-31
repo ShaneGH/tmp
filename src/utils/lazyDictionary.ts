@@ -25,10 +25,10 @@ export abstract class LazyDictionary<TKey, TValue> {
 
     getLazy(keyBase: TKey): () => TValue {
         return () => {
-            const result = this.getLazy(keyBase);
-            if (!result) throw this.buildKeyNotFoundError(keyBase);
+            const result = this.tryGetLazy(keyBase)();
+            if (result === undefined) throw this.buildKeyNotFoundError(keyBase);
 
-            return result();
+            return result;
         };
     }
 
@@ -40,6 +40,12 @@ export abstract class LazyDictionary<TKey, TValue> {
 
             return result();
         };
+    }
+
+    enumerate() {
+        return Object
+            .keys(this.values)
+            .map(x => ({ key: x, value: this.values[x]() }));
     }
 
     protected buildKeyNotFoundError(key: TKey) {

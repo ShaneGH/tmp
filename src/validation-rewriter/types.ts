@@ -45,6 +45,15 @@ class PropertyKeyword {
     static unknown = new PropertyKeyword("unknown") 
     static never = new PropertyKeyword("never") 
     static void = new PropertyKeyword("void")
+
+    static value(key: string) {
+        const result: PropertyKeyword = (PropertyKeyword as any)[key];
+        if (result instanceof PropertyKeyword) {
+            return result;
+        }
+
+        throw new Error(`${key} is not a valid property keyword.`);
+    }
 }
 
 type PropertyType = 
