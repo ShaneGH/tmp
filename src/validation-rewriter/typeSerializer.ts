@@ -164,5 +164,6 @@ function deserialize(input: Dict<SerializableType>): TypeDictionary {
 
 export {
     deserialize,
+    SerializableType,
     serialize
 }

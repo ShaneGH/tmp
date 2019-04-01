@@ -18,66 +18,66 @@ describe("rewriter", function () {
     describe("rewrite tests", function () {
             
         it("should rewrite ast for named import", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator('hello');");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate('hello');");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator } from 'ts-validator';\r\nvalidator('hello', \"testFile.ts?1\");\r\n");
+            printer.printFile(result.file).should.equal("import { validate } from 'ts-validator';\r\nvalidate('hello', \"testFile.ts?1\");\r\n");
         });
             
         it("should rewrite ast for aliased import", () => {
-            const file = createFile("import { validator as val } from 'ts-validator';\nval('hello');");
+            const file = createFile("import { validate as val } from 'ts-validator';\nval('hello');");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?1\");\r\n");
+            printer.printFile(result.file).should.equal("import { validate as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?1\");\r\n");
         });
             
         it("should rewrite ast for namespace import", () => {
-            const file = createFile("import * as vvv from 'ts-validator';\nvvv.validator('hello');");
+            const file = createFile("import * as vvv from 'ts-validator';\nvvv.validate('hello');");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import * as vvv from 'ts-validator';\r\nvvv.validator('hello', \"testFile.ts?1\");\r\n");
+            printer.printFile(result.file).should.equal("import * as vvv from 'ts-validator';\r\nvvv.validate('hello', \"testFile.ts?1\");\r\n");
         });
             
         it("should retain type signature", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator<string>('hello');");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate<string>('hello');");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator } from 'ts-validator';\r\nvalidator<string>('hello', \"testFile.ts?1\");\r\n");
+            printer.printFile(result.file).should.equal("import { validate } from 'ts-validator';\r\nvalidate<string>('hello', \"testFile.ts?1\");\r\n");
         });
             
         it("should not rewrite unrelated functions", () => {
-            const file = createFile("import { validator as val } from 'ts-validator';\nvalidator('hello');");
+            const file = createFile("import { validate as val } from 'ts-validator';\nvalidate('hello');");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator as val } from 'ts-validator';\r\nvalidator('hello');\r\n");
+            printer.printFile(result.file).should.equal("import { validate as val } from 'ts-validator';\r\nvalidate('hello');\r\n");
         });
             
         it("should preserve existing keys where possible", () => {
-            const file = createFile("import { validator as val } from 'ts-validator';\nval('hello', \"testFile.ts?existing key\");");
+            const file = createFile("import { validate as val } from 'ts-validator';\nval('hello', \"testFile.ts?existing key\");");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?existing key\");\r\n");
+            printer.printFile(result.file).should.equal("import { validate as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?existing key\");\r\n");
         });
             
         it("should rewrite existing keys if prefix is invalid", () => {
-            const file = createFile("import { validator as val } from 'ts-validator';\nval('hello', \"existing key\");");
+            const file = createFile("import { validate as val } from 'ts-validator';\nval('hello', \"existing key\");");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?1\");\r\n");
+            printer.printFile(result.file).should.equal("import { validate as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?1\");\r\n");
         });
             
         it("should generate unique key values for different calls", () => {
-            const file = createFile("import { validator as val } from 'ts-validator';\nval('hello');\nval('hello');");
+            const file = createFile("import { validate as val } from 'ts-validator';\nval('hello');\nval('hello');");
             const result = rewriter.rewrite(file);
 
-            printer.printFile(result.file).should.equal("import { validator as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?1\");\r\nval('hello', \"testFile.ts?2\");\r\n");
+            printer.printFile(result.file).should.equal("import { validate as val } from 'ts-validator';\r\nval('hello', \"testFile.ts?1\");\r\nval('hello', \"testFile.ts?2\");\r\n");
         });
     });
 
     describe("compile type literal and keyword tests", function () {
             
         it("should record string literal type", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator('hello');");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate('hello');");
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
@@ -85,7 +85,7 @@ describe("rewriter", function () {
         });
             
         it("should record number type", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator(10);");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate(10);");
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("number");
@@ -93,7 +93,7 @@ describe("rewriter", function () {
         });
             
         it("should record true type", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator(true);");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate(true);");
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
@@ -101,7 +101,7 @@ describe("rewriter", function () {
         });
             
         it("should record false type", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator(false);");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate(false);");
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
@@ -109,7 +109,7 @@ describe("rewriter", function () {
         });
             
         it("should record null type", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator(null);");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate(null);");
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("null");
@@ -117,7 +117,7 @@ describe("rewriter", function () {
         });
             
         it("should record undefined type", () => {
-            const file = createFile("import { validator } from 'ts-validator';\nvalidator(undefined);");
+            const file = createFile("import { validate } from 'ts-validator';\nvalidate(undefined);");
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("undefined");
@@ -128,9 +128,9 @@ describe("rewriter", function () {
     describe("compile variable type tests", function () {
             
         it("should compile type when type is built in", () => {
-            const file = createFile(`import { validator } from 'ts-validator';
+            const file = createFile(`import { validate } from 'ts-validator';
 let x: string = "hi";
-validator(x);`);
+validate(x);`);
             const result = rewriter.rewrite(file);
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
@@ -139,20 +139,20 @@ validator(x);`);
     });
 
     /* // https://github.com/ShaneGH/ts-validator/issues/7
-validator(someValue)
-validator({})
-validator({} as string)
-validator([])
-validator(new Date())
-validator(/sdsd/)
-validator(<string>{}) cast
-validator(<SomeTsxTag></SomeTsxTag>)
+validate(someValue)
+validate({})
+validate({} as string)
+validate([])
+validate(new Date())
+validate(/sdsd/)
+validate(<string>{}) cast
+validate(<SomeTsxTag></SomeTsxTag>)
 
      */
 
     // describe("generic test", function () {
             
-    //     const file = createFile("import * as validator from 'ts-validator';\nfunction val<T>(input: T) { validator(input); }");
+    //     const file = createFile("import * as validator from 'ts-validator';\nfunction val<T>(input: T) { validate(input); }");
 
     //     it("should throw error with good error message", () => {
     //         rewriter.rewrite(file);

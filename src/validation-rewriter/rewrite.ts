@@ -7,7 +7,7 @@ import { resolveType } from "./resolver";
 import { Type } from "./types";
 
 const moduleName = "ts-validator";
-const functionName = "validator";
+const functionName = "validate";
 
 function pad(text: string, pad: number) {
     var p = "";
@@ -84,11 +84,12 @@ function buildImportGroups(file: ts.SourceFile): ImportGroupNode {
                         : 0)
         // combine all imports with the same parent node
         .reduce((s, x) => {
-            if (s.values[x.parent.pos]) {
-                s.values[x.parent.pos].imports.push(x);
+            const parent = x.parent || file;
+            if (s.values[parent.pos]) {
+                s.values[parent.pos].imports.push(x);
             } else {
-                s.values[x.parent.pos] = { node: x.parent, imports: [x] };
-                s.orderedKeys.push(x.parent.pos);
+                s.values[parent.pos] = { node: parent, imports: [x] };
+                s.orderedKeys.push(parent.pos);
             }
 
             return s;
@@ -158,18 +159,13 @@ function asNamedImports(importNode: ts.ImportDeclaration) {
         .map(s => s.name.escapedText.toString());
 }
 
-const moduleStrings: {[key: string]: boolean} = {};
-moduleStrings[`'${moduleName}'`] = true;
-moduleStrings[`"${moduleName}"`] = true;
-moduleStrings["`" + moduleName + "`"] = true;
-
 function getReferenceToValidateFunction(importNode: ts.ImportDeclaration) {
-    const importModule = tsquery(importNode, "StringLiteral");
+    const importModule = tsquery<ts.StringLiteral>(importNode, "StringLiteral");
     if (importModule.length !== 1) {
         throw new Error(`Cannot parse import: ${importNode.getText()}`);
     }
 
-    if (!moduleStrings[importModule[0].getText()]) {
+    if (moduleName !== importModule[0].text) {
         return [[]];
     }
 
@@ -178,8 +174,7 @@ function getReferenceToValidateFunction(importNode: ts.ImportDeclaration) {
         return [[asNamespaceImport, functionName]];
     }
 
-    return asNamedImports(importNode)
-        .map(x => [x]);
+    return asNamedImports(importNode).map(x => [x]);
 }
 
 function getValidateFunctionNodes(importGroups: ImportGroupNode) {

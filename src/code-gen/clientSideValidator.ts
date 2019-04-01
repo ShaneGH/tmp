@@ -64,21 +64,7 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
 
     const writer = new CodeWriter();
     
-    writer.writeLine("import { CompilerArgs, deserialize, SerializableType, validate as validateInternal } from 'ts-validator'");
-
-    writer.writeLine();
-    writer.writeLine(`const serializableTypes: {[key: string]: SerializableType} = {`);
-    writer.tabbed(() => {
-        Object
-            .keys(typesS)
-            .forEach(k => {
-                const kSafe = k.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-                const vSafe = JSON.stringify(typesS[k]);
-                writer.writeLine(`"${kSafe}": ${vSafe},`);
-            });
-    });
-    writer.writeLine(`};`);
-    writer.writeLine(`const types = deserialize(serializableTypes);`);
+    writer.writeLine("import { deserialize, validateType } from 'ts-validator'");
 
     writer.writeLine();
     writer.writeLine(`const keyMap: {[key: string]: string} = {`);
@@ -94,10 +80,23 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
     writer.writeLine(`};`);
 
     writer.writeLine();
-    writer.writeLine(`const compilerArgs: CompilerArgs = ${JSON.stringify(compilerArgs)};`);
+    writer.writeLine(`const types = deserialize({`);
+    writer.tabbed(() => {
+        Object
+            .keys(typesS)
+            .forEach(k => {
+                const kSafe = k.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
+                const vSafe = JSON.stringify(typesS[k]);
+                writer.writeLine(`"${kSafe}": ${vSafe},`);
+            });
+    });
+    writer.writeLine(`});`);
 
     writer.writeLine();
-    writer.writeLine("export function validate<T>(subject: T, key?: string) {");
+    writer.writeLine(`const compilerArgs = ${JSON.stringify(compilerArgs)};`);
+
+    writer.writeLine();
+    writer.writeLine("export function validate<T>(subject: T, key: string) {");
 
     writer.tabbed(() => {
         writer.writeLine();
@@ -118,7 +117,7 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
         writer.writeLine('}');
 
         writer.writeLine();
-        writer.writeLine("return validateInternal(subject, type, compilerArgs);");
+        writer.writeLine("return validateType(subject, type(), compilerArgs);");
     });
 
     writer.writeLine("};");
