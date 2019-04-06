@@ -1,31 +1,41 @@
 import { generateValidateFile } from './clientSideValidator'
 import { rewrite } from '../validation-rewriter/rewrite'
 import * as ts from 'typescript'
-import * as fs from 'fs';
 import _ = require('lodash');
 
+const tsValidatorFile = "ts-validator-def.ts"
 const printer: ts.Printer = ts.createPrinter();
 
-function execute (fileName: string) {
+// TODO: error handling
+// TODO: async
+type ExecuteDependencies = {
+    readFile: (fileName: string) => Promise<string>
+    writeFile: (fileName: string, fileContent: string) => Promise<any>
+    findClosestProjectDirectory: (fileName: string) => Promise<string>
+    parsePath: (...parts: string[]) => string
+}
+
+const execute = (fileName: string) => async (dependencies: ExecuteDependencies) => {
     const file = ts.createSourceFile(
         fileName, 
-        fs.readFileSync(fileName).toString(), 
+        await dependencies.readFile(fileName),
         ts.ScriptTarget.ES2015);
 
     const rewritten = rewrite(file);
-    fs.writeFileSync(
+    await dependencies.writeFile(
         rewritten.file.fileName,
         printer.printFile(rewritten.file));
 
     const validateFile = generateValidateFile(rewritten.typeKeys, {strictNullChecks: true});
-    fs.writeFileSync(
-        "C:\\Dev\\ts-validator-dummy\\src\\blabla.ts",
+    const location = dependencies.parsePath(
+        await dependencies.findClosestProjectDirectory(fileName),
+        tsValidatorFile);
+        
+    await dependencies.writeFile(
+        location,
         validateFile.toString());
 }
 
-const fileName = process.argv[2];
-if (!fileName) {
-    throw new Error("You must specify a file name");
+export {
+    execute
 }
-
-execute(fileName);

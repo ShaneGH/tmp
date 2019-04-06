@@ -6,7 +6,8 @@
   "scripts": {
     "test": "mocha \"./test/testBin/test/**/*.js\"",
     "build": "node \"./node_modules/typescript/lib/tsc.js\"",
-    "build-and-test": "npm run build && npm run test"
+    "build-and-test": "npm run build && npm run test",
+    "dummy": "node \"./node_modules/typescript/lib/tsc.js\" \"./build.ts\" --outDir \"./dummy\" --strict"
   },
   "author": "",
   "license": "ISC",
