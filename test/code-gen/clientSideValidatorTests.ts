@@ -24,7 +24,7 @@ interface MyI2 extends MyI {
 
 let c: MyI2 = {val: "hi", num: 7};
 validator(c);
-`));
+`), "typeVal.ts");
 
 describe("Client side validator smoke test", () => {
     it("should not throw", () => {

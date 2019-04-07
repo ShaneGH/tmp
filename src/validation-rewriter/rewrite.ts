@@ -211,7 +211,10 @@ function getValidationType(node: ts.CallExpression) {
 }
 
 type TypeKeys = {[key: string]: Type}
-const transform = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string) => <T extends ts.Node>(context: ts.TransformationContext) => (rootNode: T) => {
+const transform = 
+    (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string) => 
+    <T extends ts.Node>(context: ts.TransformationContext) => 
+    (rootNode: T) => {
 
     // https://github.com/ShaneGH/ts-validator/issues/15
     relativePath += "?";
@@ -261,12 +264,88 @@ const transform = (validateCalls: ts.CallExpression[], keys: TypeKeys, relativeP
     return ts.visitNode(rootNode, visit)
 }
 
-function rewrite(file: ts.SourceFile): RewriteOutput {
+function shouldImportInit(file: ts.SourceFile, relativePathToTypes: string) {
+    const imports = tsquery<ts.ImportDeclaration>(file, "ImportDeclaration");
+    for (var i = 0; i < imports.length; i++) {
+        const mod = imports[i].moduleSpecifier;
+        if (ts.isStringLiteral(mod) && mod.text === relativePathToTypes) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function shouldCallInit(file: ts.SourceFile) {
+    const calls = tsquery<ts.CallExpression>(file, "CallExpression");
+    for (var i = 0; i < calls.length; i++) {
+        const expression = calls[i].expression;
+        if (ts.isIdentifier(expression) && expression.text === "__initTsValidatorTypes") {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+function addImportInit(file: ts.SourceFile, relativePathToTypes: string) {
+    
+    const typeImport = ts.createImportDeclaration(
+        undefined,
+        undefined,
+        ts.createImportClause(
+            undefined,
+            ts.createNamedImports(
+                [ts.createImportSpecifier(
+                    ts.createIdentifier("init"),
+                    ts.createIdentifier("__initTsValidatorTypes"))])),
+            ts.createStringLiteral(relativePathToTypes));
+
+    return ts.updateSourceFileNode(file, [
+        typeImport,
+        ...file.statements
+    ]);
+}
+
+function addCallInit(file: ts.SourceFile) {
+            
+    const initTypes = 
+        ts.createExpressionStatement(
+            ts.createCall(
+                ts.createIdentifier("__initTsValidatorTypes"), 
+                undefined, 
+                undefined));
+
+    var i = 0
+    for (; i < file.statements.length; i++) {
+        if (!ts.isImportDeclaration(file.statements[i])) {
+            break;
+        }
+    }
+
+    return ts.updateSourceFileNode(file, [
+        ...file.statements.slice(0, i),
+        initTypes,
+        ...file.statements.slice(i)
+    ]);
+
+}
+
+function rewrite(file: ts.SourceFile, relativePathToTypes: string): RewriteOutput {
     const importGroups = buildImportGroups(file);
     const functionCalls = getValidateFunctionNodes(importGroups);
+    file = shouldImportInit(file, relativePathToTypes) 
+        ? addImportInit(file, relativePathToTypes) 
+        : file;
+    file = shouldCallInit(file) 
+        ? addCallInit(file) 
+        : file;
 
     const keys: TypeKeys = {};
-    const result: ts.TransformationResult<ts.SourceFile> = ts.transform<ts.SourceFile>(file, [transform(functionCalls, keys, file.fileName)]);
+    const result: ts.TransformationResult<ts.SourceFile> = ts.transform<ts.SourceFile>(
+        file, 
+        [transform(functionCalls, keys, file.fileName)]);
+
     if (result.transformed.length !== 1) {
         throw new Error(`Unknown transform result count. Expected 1, got ${result.transformed.length}`);
     }

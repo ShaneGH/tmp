@@ -2,8 +2,9 @@ import { generateValidateFile } from './clientSideValidator'
 import { rewrite } from '../validation-rewriter/rewrite'
 import * as ts from 'typescript'
 import _ = require('lodash');
+import { moduleName } from '../const';
 
-const tsValidatorFile = "ts-validator-def.ts"
+const tsValidatorFile = moduleName + "-types.ts"
 const printer: ts.Printer = ts.createPrinter();
 
 // TODO: error handling
@@ -20,17 +21,16 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
         await dependencies.readFile(fileName),
         ts.ScriptTarget.ES2015);
 
-    const rewritten = rewrite(file);
+    const proj = await dependencies.findClosestProjectDirectory(fileName);
+    const types = dependencies.parsePath(proj, tsValidatorFile)
+
+    const rewritten = rewrite(file, types);
     await dependencies.writeFile(
         rewritten.file.fileName,
         printer.printFile(rewritten.file));
 
     const validateFile = generateValidateFile(rewritten.typeKeys, {strictNullChecks: true});
-    const location = dependencies.parsePath(
-        await dependencies.findClosestProjectDirectory(fileName),
-        "node_modules",
-        "ts-validator",
-        tsValidatorFile);
+    const location = dependencies.parsePath(proj, tsValidatorFile);
         
     await dependencies.writeFile(
         location,

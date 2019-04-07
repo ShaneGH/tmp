@@ -2,6 +2,7 @@ import { Type } from "../validation-rewriter/types";
 import { serialize } from "../validation-rewriter/typeSerializer";
 import { EOL } from  'os'
 import { CompilerArgs } from "../validator/validate";
+import { moduleName } from "../const";
 
 interface ICodeFile {
 
@@ -63,11 +64,11 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
     const typesS = serialize(typesList);
 
     const writer = new CodeWriter();
-    
-    writer.writeLine("import { deserialize, validateType } from 'ts-validator'");
+
+    writer.writeLine(`import { init } from "${moduleName}";`);
 
     writer.writeLine();
-    writer.writeLine(`const keyMap: {[key: string]: string} = {`);
+    writer.writeLine('var keyMap = {');
     writer.tabbed(() => {
         Object
             .keys(keyMap)
@@ -77,10 +78,10 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
                 writer.writeLine(`"${kSafe}": "${vSafe}",`);
             });
     });
-    writer.writeLine(`};`);
+    writer.writeLine('};');
 
     writer.writeLine();
-    writer.writeLine(`const types = deserialize({`);
+    writer.writeLine('var types = {');
     writer.tabbed(() => {
         Object
             .keys(typesS)
@@ -90,37 +91,20 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
                 writer.writeLine(`"${kSafe}": ${vSafe},`);
             });
     });
-    writer.writeLine(`});`);
+    writer.writeLine(`};`);
 
     writer.writeLine();
-    writer.writeLine(`const compilerArgs = ${JSON.stringify(compilerArgs)};`);
+    writer.writeLine(`var compilerArgs = ${JSON.stringify(compilerArgs)};`);
 
     writer.writeLine();
-    writer.writeLine("export function validate<T>(subject: T, key: string) {");
+    writer.writeLine('function initInternal () {');
+    writer.writeTabbedLine('init(keyMap, types, compilerArgs);');
+    writer.writeLine('}');
 
-    writer.tabbed(() => {
-        writer.writeLine();
-        writer.writeLine("if (!key) {");
-        writer.writeTabbedLine('throw new Error("There was no key specified for validation. Do you need to re-compile your ts code?")');
-        writer.writeLine("}");
-
-        writer.writeLine();
-        writer.writeLine('const map = keyMap[key];');
-        writer.writeLine('if (!map) {');
-        writer.writeTabbedLine('throw new Error(`Invalid validation key ${key}. Do you need to re-compile your ts code?`);');
-        writer.writeLine('}');
-
-        writer.writeLine();
-        writer.writeLine('const type = types.tryGet(map);');
-        writer.writeLine('if (!type) {');
-        writer.writeTabbedLine('throw new Error(`Could not find type for validation key ${key}, type key ${map}. Do you need to re-compile your ts code?`);');
-        writer.writeLine('}');
-
-        writer.writeLine();
-        writer.writeLine("return validateType(subject, type(), compilerArgs);");
-    });
-
-    writer.writeLine("};");
+    writer.writeLine();
+    writer.writeLine('export {');
+    writer.writeTabbedLine('initInternal as init');
+    writer.writeLine('}');
 
     return writer;
 }
