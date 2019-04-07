@@ -7,7 +7,6 @@ const tsValidatorFile = "ts-validator-def.ts"
 const printer: ts.Printer = ts.createPrinter();
 
 // TODO: error handling
-// TODO: async
 type ExecuteDependencies = {
     readFile: (fileName: string) => Promise<string>
     writeFile: (fileName: string, fileContent: string) => Promise<any>
@@ -29,6 +28,8 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
     const validateFile = generateValidateFile(rewritten.typeKeys, {strictNullChecks: true});
     const location = dependencies.parsePath(
         await dependencies.findClosestProjectDirectory(fileName),
+        "node_modules",
+        "ts-validator",
         tsValidatorFile);
         
     await dependencies.writeFile(

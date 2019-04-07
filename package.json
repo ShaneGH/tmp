@@ -4,8 +4,8 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "test": "mocha \"./test/testBin/test/**/*.js\"",
     "build": "node \"./node_modules/typescript/lib/tsc.js\"",
+    "test": "mocha \"./test/testBin/test/**/*.js\"",
     "build-and-test": "npm run build && npm run test",
     "dummy": "node \"./node_modules/typescript/lib/tsc.js\" \"./build.ts\" --outDir \"./dummy\" --strict"
   },

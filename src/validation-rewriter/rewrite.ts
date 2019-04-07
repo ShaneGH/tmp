@@ -5,9 +5,7 @@ import {isAncestor} from "../utils/astUtils";
 import {compareArrays} from "../utils/arrayUtils";
 import { resolveType } from "./resolver";
 import { Type } from "./types";
-
-const moduleName = "ts-validator";
-const functionName = "validate";
+import { moduleName, functionName } from "../const";
 
 function pad(text: string, pad: number) {
     var p = "";
