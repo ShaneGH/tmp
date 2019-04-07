@@ -6,5 +6,8 @@ testBin/
 node_modules/
 dummy/
 
-# This is a test setting. The dummy project will override this file
-./types.ts
+# This setting doesn't actually work, but it is a pointer to 
+# the following code which does/undoes this functionality
+# git update-index --assume-unchanged types.ts
+# git update-index --no-assume-unchanged types.ts
+# ./types.ts
