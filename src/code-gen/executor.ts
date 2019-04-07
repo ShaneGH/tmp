@@ -4,7 +4,7 @@ import * as ts from 'typescript'
 import _ = require('lodash');
 import { moduleName } from '../const';
 
-const tsValidatorFile = moduleName + "-types.ts"
+const tsValidatorFile = moduleName + "-types.ts";
 const printer: ts.Printer = ts.createPrinter();
 
 // TODO: error handling
@@ -13,6 +13,8 @@ type ExecuteDependencies = {
     writeFile: (fileName: string, fileContent: string) => Promise<any>
     findClosestProjectDirectory: (fileName: string) => Promise<string>
     parsePath: (...parts: string[]) => string
+    convertToRelativePath: (pathFrom: string, pathTo: string) => string
+    convertRelativePathToUnix: (path: string) => string
 }
 
 const execute = (fileName: string) => async (dependencies: ExecuteDependencies) => {
@@ -22,9 +24,20 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
         ts.ScriptTarget.ES2015);
 
     const proj = await dependencies.findClosestProjectDirectory(fileName);
-    const types = dependencies.parsePath(proj, tsValidatorFile)
+    const typesFile = dependencies
+        .convertRelativePathToUnix(
+            dependencies.convertToRelativePath(
+                fileName,
+                dependencies.parsePath(proj, tsValidatorFile)))
+        .replace(/\.[jt]s$/, "");
 
-    const rewritten = rewrite(file, types);
+    const fileRelativePath = dependencies
+        .convertRelativePathToUnix(
+            dependencies.convertToRelativePath(
+                proj,
+                fileName));
+
+    const rewritten = rewrite(file, typesFile, fileRelativePath);
     await dependencies.writeFile(
         rewritten.file.fileName,
         printer.printFile(rewritten.file));

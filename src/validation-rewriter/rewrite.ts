@@ -328,10 +328,9 @@ function addCallInit(file: ts.SourceFile) {
         initTypes,
         ...file.statements.slice(i)
     ]);
-
 }
 
-function rewrite(file: ts.SourceFile, relativePathToTypes: string): RewriteOutput {
+function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFilePath: string): RewriteOutput {
     const importGroups = buildImportGroups(file);
     const functionCalls = getValidateFunctionNodes(importGroups);
     file = shouldImportInit(file, relativePathToTypes) 
@@ -344,7 +343,7 @@ function rewrite(file: ts.SourceFile, relativePathToTypes: string): RewriteOutpu
     const keys: TypeKeys = {};
     const result: ts.TransformationResult<ts.SourceFile> = ts.transform<ts.SourceFile>(
         file, 
-        [transform(functionCalls, keys, file.fileName)]);
+        [transform(functionCalls, keys, relativeFilePath)]);
 
     if (result.transformed.length !== 1) {
         throw new Error(`Unknown transform result count. Expected 1, got ${result.transformed.length}`);

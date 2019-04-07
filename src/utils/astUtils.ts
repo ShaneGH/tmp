@@ -35,6 +35,7 @@ function _visitNodesInScope<TResult>(current: ts.Node, visitor: (x: ts.Node) => 
 }
 
 function visitNodesInScope<TResult>(node: ts.Node, visitor: (x: ts.Node) => VisitResult<TResult>) {
+    if (!node.parent) return null;
     return _visitNodesInScope(node.parent, visitor);
 }
 

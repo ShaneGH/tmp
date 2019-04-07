@@ -11,7 +11,7 @@ function createFile(text: string) {
     );
 }
 
-const rewriteOutput = rewrite(createFile(`
+const testCases = [`
 import { validator } from 'ts-validator';
 
 interface MyI {
@@ -24,10 +24,23 @@ interface MyI2 extends MyI {
 
 let c: MyI2 = {val: "hi", num: 7};
 validator(c);
-`), "typeVal.ts");
+`, `
+import { init as __initTsValidatorTypes } from "../ts-validator-types";
+import { validate } from "ts-validator";
+__initTsValidatorTypes();
+//validate("hello", "./src/my.ts?1");
 
-describe("Client side validator smoke test", () => {
-    it("should not throw", () => {
-        generateValidateFile(rewriteOutput.typeKeys, {strictNullChecks: true}).toString().should.not.eq("");
-    });
-});
+
+type MyT = {
+    val: string
+};
+
+let yy: MyT = {} as any;
+
+validate(yy);
+`]
+.map(x => rewrite(createFile(x), "typeVal.ts", "./anotherVal.ts"));
+
+describe("Client side validator smoke tests", () =>
+    testCases.forEach((val, i) => it("should not throw " + i, () =>
+        generateValidateFile(testCases[i].typeKeys, {strictNullChecks: true}).toString().should.not.eq(""))));

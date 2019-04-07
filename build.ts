@@ -2,6 +2,7 @@ import { readdir, readFile, writeFile } from 'fs';
 import { parse as parsePath, sep, join as joinPath } from 'path';
 import { execute } from "./src/code-gen/executor"
 import { promisify2_1, promisify3_1 } from "./src/utils/promisify"
+import { convertToRelativePath, convertRelativePathToUnix } from './src/utils/pathUtils';
 
 const readdirAsync = promisify2_1(readdir);
 const readFileAsync = promisify2_1(readFile);
@@ -66,7 +67,9 @@ const dependencies = {
     readFile: async (fileName: string) => (await readFileAsync(fileName, null as any)).toString(),
     writeFile: (fileName: string, fileContent: string) => writeFileAsync(fileName, fileContent, null as any),
     findClosestProjectDirectory,
-    parsePath: (...parts: string[]) => joinPath.apply(null, parts) as string
+    parsePath: (...parts: string[]) => joinPath.apply(null, parts) as string,
+    convertToRelativePath,
+    convertRelativePathToUnix
 };
 
 const fileName = process.argv[2];
