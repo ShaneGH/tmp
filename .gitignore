@@ -7,4 +7,4 @@ node_modules/
 dummy/
 
 # This is a test setting. The dummy project will override this file
-types.ts
+./types.ts
