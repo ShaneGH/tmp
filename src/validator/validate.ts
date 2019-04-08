@@ -47,7 +47,7 @@ function validate(subject: any, type: Type, compilerArgs: CompilerArgs) {
         }
 
         // TODO: check if type extends null or undefined
-        return false;
+        return  false;
     }
     
     for (let i = 0; i < type.properties.length; i++) {

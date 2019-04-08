@@ -7,7 +7,6 @@ import { moduleName } from '../const';
 const tsValidatorFile = moduleName + "-types.ts";
 const printer: ts.Printer = ts.createPrinter();
 
-// TODO: error handling
 type ExecuteDependencies = {
     readFile: (fileName: string) => Promise<string>
     writeFile: (fileName: string, fileContent: string) => Promise<any>

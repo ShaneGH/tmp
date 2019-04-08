@@ -42,7 +42,6 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
                 continue;
             }
             
-            // TODO: what code would cause this case?
             throw new Error(`Binding patterns are not supported: ${x.getText(file)}`);
         }
     });

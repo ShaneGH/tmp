@@ -39,7 +39,6 @@ async function findClosestProjectDir(directoryName: string): Promise<string | nu
     return await findClosestProjectDir(parent);
 }
 
-// TODO: absolute vs relative
 async function findClosestProjectDirectory(fileName: string) {
     const path = parsePath(fileName);
     if (!path) {
@@ -66,8 +65,8 @@ async function findClosestProjectDirectory(fileName: string) {
 const dependencies = {
     readFile: async (fileName: string) => (await readFileAsync(fileName, null as any)).toString(),
     writeFile: (fileName: string, fileContent: string) => writeFileAsync(fileName, fileContent, null as any),
-    findClosestProjectDirectory,
     joinPath: (...parts: string[]) => joinPath.apply(null, parts) as string,
+    findClosestProjectDirectory,
     convertToRelativePath,
     convertRelativePathToUnix
 };
@@ -78,4 +77,7 @@ if (!fileName) {
 }
 
 const result = execute(fileName)(dependencies);
-result.catch(console.error);
+result.catch(x => {
+    console.error(x);
+    process.exit(1);
+});
