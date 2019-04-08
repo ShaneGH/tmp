@@ -264,8 +264,12 @@ propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
 
 class TypeDictionary extends LazyDictionary<ts.Node, Type> {
     
+    constructor(private _fileRelativePath: string) {
+        super();
+    }
+
     protected buildKey(key: ts.Node) {
-        return `${key.pos}-${key.end}, ${key.getSourceFile().fileName}`;
+        return `${key.pos}-${key.end}, ${this._fileRelativePath}`;
     }
 }
 
@@ -309,8 +313,8 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
     }
 }
 
-function publicResolveType(type: ts.TypeNode | ts.Identifier, file: ts.SourceFile): Type | null {
-    const result = resolveType(type, new TypeDictionary(), file);
+function publicResolveType(type: ts.TypeNode | ts.Identifier, file: ts.SourceFile, fileRelativePath: string): Type | null {
+    const result = resolveType(type, new TypeDictionary(fileRelativePath), file);
     return result ? result() : null;
 }
 

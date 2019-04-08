@@ -202,12 +202,12 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode, file: ts.Source
     return _.flatMap(result);
 }
 
-function getValidationType(node: ts.CallExpression, file: ts.SourceFile) {
+function getValidationType(node: ts.CallExpression, file: ts.SourceFile, fileRelativePath: string) {
     if (!node.arguments || !node.arguments.length) {
         throw new Error(`${node.getText(file)} is not a call to ${functionName}(...).`);
     }
     
-    return resolveTypeForExpression(node.arguments[0], file);
+    return resolveTypeForExpression(node.arguments[0], file, fileRelativePath);
 }
 
 type TypeKeys = {[k: string]: ts.CallExpression}
@@ -355,7 +355,7 @@ function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFileP
     const typeKeys: {[k: string]: Type} = {};
     Object
         .keys(keys)
-        .forEach(k => typeKeys[k] = getValidationType(keys[k], file));
+        .forEach(k => typeKeys[k] = getValidationType(keys[k], file, relativeFilePath));
 
     return {
         file: result.transformed[0],

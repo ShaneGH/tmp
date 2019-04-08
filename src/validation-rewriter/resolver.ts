@@ -48,7 +48,7 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
     });
 }
 
-function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile): Type {
+function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile, fileRelativePath: string): Type {
     if (propertyKeywords[expr.kind]) {
         return {
             id: propertyKeywords[expr.kind].keyword,
@@ -75,7 +75,7 @@ function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile): Typ
         }
 
         if (varDec.type) {
-            const t = resolveTypeNode(varDec.type, file);
+            const t = resolveTypeNode(varDec.type, file, fileRelativePath);
             if (!t) {
                 throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
             }
