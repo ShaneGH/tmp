@@ -48,6 +48,15 @@ export abstract class LazyDictionary<TKey, TValue> {
             .map(x => ({ key: x, value: this.values[x]() }));
     }
 
+    toDictionary(): {[key: string]: TValue} {
+        const result: {[key: string]: TValue} = {};
+        Object
+            .keys(this.values)
+            .forEach(k => result[k] = this.values[k]());
+
+        return result;
+    }
+
     protected buildKeyNotFoundError(key: TKey) {
         return new Error(`Could not find value for key: ${this.buildKey(key)}.`);
     }

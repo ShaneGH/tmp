@@ -1,7 +1,6 @@
 import * as ts from 'typescript';
-import { tsquery } from '@phenomnomnominal/tsquery';
 import { visitNodesInScope } from '../utils/astUtils';
-import { resolveType as resolveTypeNode, Type, TypeWrapper, PropertyKeyword } from './types';
+import { resolveType as resolveTypeNode, Type, PropertyKeyword } from './types';
 
 
 function pad(text: string, pad: number) {
@@ -26,9 +25,9 @@ propertyKeywords[ts.SyntaxKind.UndefinedKeyword] = PropertyKeyword.undefined;
 
 // TODO: not sure how this function deals with the var
 // keyword, and multiple usages of the same word
-function findVariableDeclaration(variable: ts.Identifier) {
-    const variableName = variable.escapedText.toString();
+function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
 
+    const variableName = variable.escapedText.toString();
     return visitNodesInScope(variable, x => {
 
         if (!ts.isVariableStatement(x)) return null;
@@ -44,12 +43,12 @@ function findVariableDeclaration(variable: ts.Identifier) {
             }
             
             // TODO: what code would cause this case?
-            throw new Error(`Binding patterns are not supported: ${x.getText()}`);
+            throw new Error(`Binding patterns are not supported: ${x.getText(file)}`);
         }
     });
 }
 
-function resolveType(expr: ts.Expression): Type {
+function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile): Type {
     if (propertyKeywords[expr.kind]) {
         return {
             id: propertyKeywords[expr.kind].keyword,
@@ -69,27 +68,27 @@ function resolveType(expr: ts.Expression): Type {
                 extends: [propertyKeywords[ts.SyntaxKind.UndefinedKeyword]]
             };
         }
+        
+        const varDec = findVariableDeclaration(expr, file);
+        if (!varDec) {
+            throw new Error(`Cannot find declaration of variable: ${expr.getFullText(file)}`);
+        }
 
-        const varDec = findVariableDeclaration(expr);
-        if (varDec) {
-            if (varDec.type) {
-                const t = resolveTypeNode(varDec.type);
-                if (!t) {
-                    throw new Error(`Cannot find type for variable: ${expr.getText()}`);
-                }
-
-                return t;
+        if (varDec.type) {
+            const t = resolveTypeNode(varDec.type, file);
+            if (!t) {
+                throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
             }
 
-            throw new Error("TODO: https://github.com/ShaneGH/ts-validator/issues/7");
+            return t;
         }
-        
-        throw new Error(`Cannot find declaration of object: ${expr.getFullText()}`);
+
+        throw new Error("TODO: https://github.com/ShaneGH/ts-validator/issues/7");
     }
 
-    throw new Error(`Cannot resolve type for object: ${expr.getFullText()}`);
+    throw new Error(`Cannot resolve type for object: ${expr.getFullText(file)}`);
 }
 
 export {
-    resolveType
+    resolveTypeForExpression
 }

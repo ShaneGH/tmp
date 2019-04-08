@@ -34,7 +34,7 @@ describe("nodeParser", function () {
             throw new Error("Could not find variable.");
         }
 
-        const type = types.resolveType(variableTypes[variableTypes.length - 1]);
+        const type = types.resolveType(variableTypes[variableTypes.length - 1], file);
         if (!type) {
             print(file);
             throw new Error("Could not resolve type.");

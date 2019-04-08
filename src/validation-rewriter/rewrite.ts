@@ -3,7 +3,7 @@ import { tsquery } from '@phenomnomnominal/tsquery';
 import * as _ from 'lodash';
 import {isAncestor} from "../utils/astUtils";
 import {compareArrays} from "../utils/arrayUtils";
-import { resolveType } from "./resolver";
+import { resolveTypeForExpression } from "./resolver";
 import { Type } from "./types";
 import { moduleName, functionName } from "../const";
 
@@ -21,7 +21,7 @@ function print(node: ts.Node, recurse = true, level = 0) {
 
 type RewriteOutput = {
     file: ts.SourceFile,
-    typeKeys: TypeKeys
+    typeKeys: {[k: string]: Type}
 }
 
 class ImportGroupNode {
@@ -131,11 +131,11 @@ function flatten(importGroups: ImportGroupNode): ImportGroupNode[] {
     return result;
 }
 
-function getNamespaceImport(importNode: ts.ImportDeclaration) {
+function getNamespaceImport(importNode: ts.ImportDeclaration, file: ts.SourceFile) {
 
     const asNamespaceImport = tsquery<ts.NamespaceImport>(importNode, "NamespaceImport");
     if (asNamespaceImport.length > 1) {
-        throw new Error(`Cannot parse import: ${importNode.getText()}`);
+        throw new Error(`Cannot parse import: ${importNode.getText(file)}`);
     }
 
     if (!asNamespaceImport.length) {
@@ -144,7 +144,7 @@ function getNamespaceImport(importNode: ts.ImportDeclaration) {
 
     const token = tsquery<ts.Identifier>(asNamespaceImport[0], "Identifier");
     if (token.length !== 1) {
-        throw new Error(`Cannot parse import: ${importNode.getText()}`);
+        throw new Error(`Cannot parse import: ${importNode.getText(file)}`);
     }
 
     return token[0].escapedText.toString();
@@ -157,17 +157,17 @@ function asNamedImports(importNode: ts.ImportDeclaration) {
         .map(s => s.name.escapedText.toString());
 }
 
-function getReferenceToValidateFunction(importNode: ts.ImportDeclaration) {
+function getReferenceToValidateFunction(importNode: ts.ImportDeclaration, file: ts.SourceFile) {
     const importModule = tsquery<ts.StringLiteral>(importNode, "StringLiteral");
     if (importModule.length !== 1) {
-        throw new Error(`Cannot parse import: ${importNode.getText()}`);
+        throw new Error(`Cannot parse import: ${importNode.getText(file)}`);
     }
 
     if (moduleName !== importModule[0].text) {
         return [[]];
     }
 
-    const asNamespaceImport = getNamespaceImport(importNode);
+    const asNamespaceImport = getNamespaceImport(importNode, file);
     if (asNamespaceImport) {
         return [[asNamespaceImport, functionName]];
     }
@@ -175,11 +175,11 @@ function getReferenceToValidateFunction(importNode: ts.ImportDeclaration) {
     return asNamedImports(importNode).map(x => [x]);
 }
 
-function getValidateFunctionNodes(importGroups: ImportGroupNode) {
+function getValidateFunctionNodes(importGroups: ImportGroupNode, file: ts.SourceFile) {
     const result = flatten(importGroups)
         .map(x => ({
             group: x,
-            imports: _.flatMap(x.imports, getReferenceToValidateFunction)
+            imports: _.flatMap(x.imports, x => getReferenceToValidateFunction(x, file))
         }))
         .filter(x => !!x.imports.length)
         .map(x => tsquery<ts.CallExpression>(x.group.groupNode, "CallExpression")
@@ -187,7 +187,7 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode) {
 
                 let propertyParts: string[] = [];
                 if (ts.isPropertyAccessExpression(call.expression)) {
-                    propertyParts = call.expression.getText().split(".");
+                    propertyParts = call.expression.getText(file).split(".");
                 } else if (ts.isIdentifier(call.expression)) {
                     propertyParts = [call.expression.escapedText.toString()];
                 } else {
@@ -202,17 +202,17 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode) {
     return _.flatMap(result);
 }
 
-function getValidationType(node: ts.CallExpression) {
+function getValidationType(node: ts.CallExpression, file: ts.SourceFile) {
     if (!node.arguments || !node.arguments.length) {
-        throw new Error(`${node.getText()} is not a call to ${functionName}(...).`);
+        throw new Error(`${node.getText(file)} is not a call to ${functionName}(...).`);
     }
-
-    return resolveType(node.arguments[0]);
+    
+    return resolveTypeForExpression(node.arguments[0], file);
 }
 
-type TypeKeys = {[key: string]: Type}
-const transform = 
-    (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string) => 
+type TypeKeys = {[k: string]: ts.CallExpression}
+const buildTransformer = 
+    (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string, file: ts.SourceFile) => 
     <T extends ts.Node>(context: ts.TransformationContext) => 
     (rootNode: T) => {
 
@@ -225,7 +225,7 @@ const transform =
         while (keys[relativePath + (++iKey)]) ;
 
         const key = relativePath + iKey;
-        keys[key] = getValidationType(node);
+        keys[key] = node;
 
         return ts.createLiteral(key);
     }
@@ -239,17 +239,17 @@ const transform =
         }
 
         if (node.arguments.length === 0 || node.arguments.length > 2) {
-            throw new Error(`Cannot parse expression ${node.getText()}`);
+            throw new Error(`Cannot parse expression ${node.getText(file)}`);
         }
 
         if (node.arguments.length === 2) {
             const secondArg = node.arguments[1];
             if (!ts.isStringLiteral(secondArg)) {
-                throw new Error(`Cannot parse expression ${node.getText()}`);
+                throw new Error(`Cannot parse expression ${node.getText(file)}`);
             }
 
             if (secondArg.text.startsWith(relativePath) && !keys[secondArg.text]) {
-                keys[secondArg.text] = getValidationType(node);
+                keys[secondArg.text] = node;
                 return node;
             }
         }
@@ -331,8 +331,9 @@ function addCallInit(file: ts.SourceFile) {
 }
 
 function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFilePath: string): RewriteOutput {
+
     const importGroups = buildImportGroups(file);
-    const functionCalls = getValidateFunctionNodes(importGroups);
+    const functionCalls = getValidateFunctionNodes(importGroups, file);
     file = shouldImportInit(file, relativePathToTypes) 
         ? addImportInit(file, relativePathToTypes) 
         : file;
@@ -341,9 +342,9 @@ function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFileP
         : file;
 
     const keys: TypeKeys = {};
-    const result: ts.TransformationResult<ts.SourceFile> = ts.transform<ts.SourceFile>(
+    const result = ts.transform<ts.SourceFile>(
         file, 
-        [transform(functionCalls, keys, relativeFilePath)]);
+        [buildTransformer(functionCalls, keys, relativeFilePath, file)]);
 
     if (result.transformed.length !== 1) {
         throw new Error(`Unknown transform result count. Expected 1, got ${result.transformed.length}`);
@@ -351,9 +352,14 @@ function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFileP
 
     result.dispose();
 
+    const typeKeys: {[k: string]: Type} = {};
+    Object
+        .keys(keys)
+        .forEach(k => typeKeys[k] = getValidationType(keys[k], file));
+
     return {
         file: result.transformed[0],
-        typeKeys: keys
+        typeKeys
     };
 }
 

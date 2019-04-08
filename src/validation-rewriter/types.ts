@@ -79,21 +79,21 @@ type Type = {
     extends: ExtendsTypes[]
 };
 
-function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary): Property {
+function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary, file: ts.SourceFile): Property {
     if (!ts.isPropertySignature(node) && !ts.isPropertyDeclaration(node)) {
-        throw new Error(`Member ${node.getText()} is not supported.`);
+        throw new Error(`Member ${node.getText(file)} is not supported.`);
     }
 
-    return getProperty(node, dictionary);
+    return getProperty(node, dictionary, file);
 }
 
-function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictionary: TypeDictionary): Property {
+function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): Property {
     if (!node.type) {
-        throw new Error(`Member ${node.getText()} is not supported.`);
+        throw new Error(`Member ${node.getText(file)} is not supported.`);
     }
 
     if (!ts.isIdentifier(node.name)) {
-        throw new Error(`Member ${node.getText()} is not supported.`);
+        throw new Error(`Member ${node.getText(file)} is not supported.`);
     }
 
     if (propertyKeywords[node.type.kind]) {
@@ -106,18 +106,18 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
     if (ts.isTypeLiteralNode(node.type)) {
         return {
             name: node.name.escapedText.toString(),
-            type: new PropertiesWrapper(node.type.members.map(x => getPropertyForClassOrInterface(x, dictionary)))
+            type: new PropertiesWrapper(node.type.members.map(x => getPropertyForClassOrInterface(x, dictionary, file)))
         };
     }
 
     if (ts.isTypeReferenceNode(node.type)) {
         if (!ts.isIdentifier(node.type.typeName)) {
-            throw new Error(`Member ${node.getText()} is not supported.`);
+            throw new Error(`Member ${node.getText(file)} is not supported.`);
         }
 
-        const result = resolveType(node.type.typeName, dictionary);
+        const result = resolveType(node.type.typeName, dictionary, file);
         if (!result) {
-            throw new Error(`Cannot find type ${node.type.typeName.getText()} for property ${node.name.escapedText.toString()}.`);
+            throw new Error(`Cannot find type ${node.type.typeName.getText(file)} for property ${node.name.escapedText.toString()}.`);
         }
 
         return {
@@ -126,7 +126,7 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
         };
     }
     
-    throw new Error(`Member ${node.getText()} is not supported.`);
+    throw new Error(`Member ${node.getText(file)} is not supported.`);
 
         // const children = propType.getChildren();
         // if (children.length !== 1 || children[0].kind != ts.SyntaxKind.SyntaxList) {
@@ -157,27 +157,27 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
         // return unionTypes;
 }
 
-function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, dictionary: TypeDictionary): Property[] {
+function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, dictionary: TypeDictionary, file: ts.SourceFile): Property[] {
 
     if (ts.isInterfaceDeclaration(node)) {
-        return node.members.map(x => getPropertyForClassOrInterface(x, dictionary));
+        return node.members.map(x => getPropertyForClassOrInterface(x, dictionary, file));
     } else if (ts.isClassDeclaration(node)) {
-        return node.members.map(x => getPropertyForClassOrInterface(x, dictionary));
+        return node.members.map(x => getPropertyForClassOrInterface(x, dictionary, file));
     }
 
-    return node.members.map(x => getPropertyForClassOrInterface(x, dictionary));
+    return node.members.map(x => getPropertyForClassOrInterface(x, dictionary, file));
 }
 
-function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary): () => Type {
-    const t = resolveType(type, dictionary);
+function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary, file: ts.SourceFile): () => Type {
+    const t = resolveType(type, dictionary, file);
     if (!t) {
-        throw new Error(`Cannot resolve type for ${type.getText()}`);
+        throw new Error(`Cannot resolve type for ${type.getText(file)}`);
     }
 
     return t;
 }
 
-function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, dictionary: TypeDictionary): () => Type {
+function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): () => Type {
         
     return dictionary.tryAdd(node, function (id) {
 
@@ -191,11 +191,11 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
                 for (var j = 0; j < node.heritageClauses[i].types.length; j++) {
                     const type = node.heritageClauses[i].types[j];
                     if (!ts.isIdentifier(type.expression)) {
-                        throw new Error(`Unsupported extends clause ${type.expression.getText()}`);
+                        throw new Error(`Unsupported extends clause ${type.expression.getText(file)}`);
                     }
 
                     if (type.typeArguments && type.typeArguments.length) {
-                        throw new Error(`Generics are not supported yet ${type.expression.getText()}`);
+                        throw new Error(`Generics are not supported yet ${type.expression.getText(file)}`);
                     }
 
                     // https://github.com/ShaneGH/ts-validator/issues/16
@@ -208,13 +208,13 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
         return {
             name,
             id,
-            properties: getProperties(node, dictionary),
-            extends: extendesInterfaces.map(x => new TypeWrapper(resolveTypeWithNullError(x, dictionary)))
+            properties: getProperties(node, dictionary, file),
+            extends: extendesInterfaces.map(x => new TypeWrapper(resolveTypeWithNullError(x, dictionary, file)))
         };
     });
 }
 
-function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, dictionary: TypeDictionary): (() => Type) {
+function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): (() => Type) {
         
     return dictionary.tryAdd(node, function (id) {
 
@@ -222,13 +222,13 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
             return {
                 id,
                 name,
-                properties: getProperties(node.type, dictionary),
+                properties: getProperties(node.type, dictionary, file),
                 extends: []
             };
         } else if (ts.isTypeReferenceNode(node.type)) {
-            const result = resolveType(node.type, dictionary);
+            const result = resolveType(node.type, dictionary, file);
             if (!result) {
-                throw new Error(`Could not resolve type: ${node.getText()}`);
+                throw new Error(`Could not resolve type: ${node.getText(file)}`);
             }
 
             return {
@@ -246,7 +246,7 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
             };
         } else {
 
-            throw new Error(`Unsupported type: ${node.getText()}`);
+            throw new Error(`Unsupported type: ${node.getText(file)}`);
         }
     });
 }
@@ -269,7 +269,7 @@ class TypeDictionary extends LazyDictionary<ts.Node, Type> {
     }
 }
 
-function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary): (() => Type) | null {
+function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary, file: ts.SourceFile): (() => Type) | null {
     if (propertyKeywords[type.kind]) {
         return () => ({
             id: propertyKeywords[type.kind].keyword,
@@ -286,31 +286,31 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
         name = type.typeName;
     } else {
         // https://github.com/ShaneGH/ts-validator/issues/16
-        throw new Error(`Unsupported type: ${type.getText()}.`);
+        throw new Error(`Unsupported type: ${type.getText(file)}.`);
     }
     
     const typeName = ts.isIdentifier(name)
         ? [name.escapedText.toString()]
-        : name.getText().split(".");
+        : name.getText(file).split(".");
 
     if (typeName.length == 1) {
         return visitNodesInScope(type, x => {
             if ((ts.isInterfaceDeclaration(x) || ts.isClassDeclaration(x)) && x.name && x.name.escapedText.toString() === typeName[0]) {
-                return buildClasssOrInterfaceType(typeName[0], x, dictionary);
+                return buildClasssOrInterfaceType(typeName[0], x, dictionary, file);
             } 
             
             if (ts.isTypeAliasDeclaration(x) && x.name.escapedText.toString() === typeName[0]) {
-                return buildTypeAliasType(typeName[0], x, dictionary);
+                return buildTypeAliasType(typeName[0], x, dictionary, file);
             }
         }) || null;
     } else {
         // https://github.com/ShaneGH/ts-validator/issues/16
-        throw new Error(`Unsupported type: ${type.getText()}.`);
+        throw new Error(`Unsupported type: ${type.getText(file)}.`);
     }
 }
 
-function publicResolveType(type: ts.TypeNode | ts.Identifier): Type | null {
-    const result = resolveType(type, new TypeDictionary());
+function publicResolveType(type: ts.TypeNode | ts.Identifier, file: ts.SourceFile): Type | null {
+    const result = resolveType(type, new TypeDictionary(), file);
     return result ? result() : null;
 }
 

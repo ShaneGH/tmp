@@ -67,7 +67,7 @@ const dependencies = {
     readFile: async (fileName: string) => (await readFileAsync(fileName, null as any)).toString(),
     writeFile: (fileName: string, fileContent: string) => writeFileAsync(fileName, fileContent, null as any),
     findClosestProjectDirectory,
-    parsePath: (...parts: string[]) => joinPath.apply(null, parts) as string,
+    joinPath: (...parts: string[]) => joinPath.apply(null, parts) as string,
     convertToRelativePath,
     convertRelativePathToUnix
 };
