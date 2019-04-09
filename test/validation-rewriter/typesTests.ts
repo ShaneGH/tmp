@@ -2,20 +2,13 @@ import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as types from '../../src/validation-rewriter/types';
 import { tsquery } from '@phenomnomnominal/tsquery';
-import { deserialize, serialize } from '../../src/validation-rewriter/typeSerializer';
+import { deserialize, serialize } from '../../src/validation-rewriter/typeSerializers';
 import _ = require('lodash');
-import { TypeWrapper } from '../../src/validation-rewriter/types';
+import { LazyDictionary } from '../../src/utils/lazyDictionary';
 
 chai.should();
 
 describe("nodeParser", function () {
-    
-    function assertNotNull<T>(x: T | null): x is T {
-        if (x === undefined) x = null;
-        chai.assert.isNotNull(x);
-
-        return true;
-    }
 
     function pad(text: string, pad: number) {
         var p = "";
@@ -49,10 +42,18 @@ describe("nodeParser", function () {
             throw new Error("Could not resolve type.");
         }
 
+        if (!(type instanceof types.AliasedType)) {
+            print(file);
+            console.error(type);
+            throw new Error(`Error defining code. Expected TypeWithProperties or AliasedType`);
+        }
+
         if (type.name !== typeName) {
             print(file);
             throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
         }
+        
+// TODO: 2, parenthesis in union/intersection
 
         if (!testSerializer) return type;
 
@@ -73,11 +74,11 @@ describe("nodeParser", function () {
             const type = resolveType(classOrInterface + "{ prop1: string; prop2: number; prop3: boolean; prop4: any; prop5: null; prop6: undefined }", name);
 
             it("should parse correct name type and property length", () => {
-                (type.properties as types.Property[]).length.should.equal(6);
+                ((type.aliases as types.Properties).properties as types.Property[]).length.should.equal(6);
                 type.name.should.equal(name);
             });
 
-            const ps = type.properties as types.Property[];
+            const ps = (type.aliases as types.Properties).properties;
 
             it("should parse string properties", () => {
                 ps[0].name.should.equal("prop1");
@@ -115,28 +116,28 @@ describe("nodeParser", function () {
 
             let firstProperty: types.Property;
             it("should parse correct type and property length", () => {
-                (type.properties as types.Property[]).length.should.equal(1);
-                firstProperty = (type.properties as types.Property[])[0];
+                ((type as types.AliasedType).aliases as types.Properties).properties.length.should.equal(1);
+                firstProperty = ((type as types.AliasedType).aliases as types.Properties).properties[0];
             });
 
             describe("should parse complex properties", () => {
 
                 it("should parse complex property", () => {
                     firstProperty.name.should.equal("prop1");
-                    chai.assert.equal(firstProperty.type.constructor, types.PropertiesWrapper);
-                    (<types.PropertiesWrapper>firstProperty.type).properties.length.should.equal(2);
+                    chai.assert.equal(firstProperty.type.constructor, types.Properties);
+                    (<types.Properties>firstProperty.type).properties.length.should.equal(2);
                 });
 
                 describe("should parse inner properties", () => {
 
                     it("should parse string properties", () => {
-                        const innerT = (firstProperty.type as types.PropertiesWrapper);
+                        const innerT = (firstProperty.type as types.Properties);
                         innerT.properties[0].name.should.equal("prop2");
                         innerT.properties[0].type.should.equal(types.PropertyKeyword.string);
                     });
 
                     it("should parse number properties", () => {
-                        const innerT = (firstProperty.type as types.PropertiesWrapper);
+                        const innerT = (firstProperty.type as types.Properties);
                         innerT.properties[1].name.should.equal("prop3");
                         innerT.properties[1].type.should.equal(types.PropertyKeyword.number);
                     });
@@ -155,20 +156,18 @@ describe("nodeParser", function () {
 
     describe("types", function () {
         
-        runForDeclaration("type MyType = ", "MyType");
+        //runForDeclaration("type MyType = ", "MyType");
 
         describe(`should parse type alias`, function () {
             
-            const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT");
+            const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT") as types.AliasedType;
             let aliasedTypeName: string;
             let aliasedTypeProperties: types.Property[];
 
             it("should parse correct type and property length", () => {
                 type.name.should.equal("MyT");
-                if (assertNotNull(type.extends)) {
-                    aliasedTypeName = (type.extends as types.TypeWrapper).getType().name;
-                    aliasedTypeProperties = (type.extends as types.TypeWrapper).getType().properties as types.Property[];
-                }
+                aliasedTypeName = (type.aliases as types.LazyTypeReference).getType().name;
+                aliasedTypeProperties = ((type.aliases as types.LazyTypeReference).getType().aliases as types.Properties).properties;
             });
 
             it("should parse first property", () => {
@@ -183,11 +182,11 @@ describe("nodeParser", function () {
         function runForTypeAlias(aliasedType: types.PropertyKeyword) {
 
             describe(`should parse type alias: ${aliasedType.keyword}`, function () {
-                const type = resolveType("type MyT = " + aliasedType.keyword, "MyT");
+                const type = resolveType("type MyT = " + aliasedType.keyword, "MyT") as types.AliasedType;
 
                 it("should parse correct type and property aliased value", () => {
                     type.name.should.equal("MyT");
-                    (type.extends as types.PropertyKeyword).should.equal(aliasedType);
+                    type.aliases.should.equal(aliasedType);
                 });
             });
         }
@@ -210,38 +209,42 @@ describe("nodeParser", function () {
             type.name.should.equal("MyT");
             type.id.should.equal("31-46, testFile.ts");
             
-            (type.extends as types.TypeWrapper).getType().name.should.equal("MyI");
-            (type.extends as types.TypeWrapper).getType().id.should.equal("0-31, testFile.ts");
+            ((type as types.AliasedType).aliases as types.LazyTypeReference).getType().name.should.equal("MyI");
+            ((type as types.AliasedType).aliases as types.LazyTypeReference).id.should.equal("0-31, testFile.ts");
         });
     });
 
     function inheritance (classOrInterface: "class" | "interface") {
         describe(classOrInterface + " inheritance", function () {
 
-            const type = resolveType(`${classOrInterface} My1 { prop1: string }\n${classOrInterface} My2 extends My1 { prop2: number }`, "My2");
+            const type = resolveType(
+                `${classOrInterface} My1 { prop1: string }\n${classOrInterface} My2 extends My1 { prop2: number }`, "My2"
+                ) as types.AliasedType;
 
-            it("should parse types", () => {
+            const properties = (type.aliases as types.BinaryType).left as types.Properties;
+            const extended = (type.aliases as types.BinaryType).right as types.LazyTypeReference;
+            const combinator = (type.aliases as types.BinaryType).combinator;
+
+            it("should parse type as intersection type", () => {
                 type.name.should.equal("My2");
 
-                if (assertNotNull(type.extends)) {
-                    (type.extends as TypeWrapper).getType().name.should.equal("My1");
-                }
+                properties.should.be.instanceof(types.Properties);
+                combinator.should.be.eq(types.BinaryTypeCombinator.Intersection);
+                extended.should.be.instanceof(types.LazyTypeReference);
             });
 
             it("should have the correct properties", () => {
-                const props = type.properties as types.Property[];
+                properties.properties.length.should.eq(1);
+                properties.properties[0].name.should.eq("prop2");
+                properties.properties[0].type.should.eq(types.PropertyKeyword.number);
+            });
 
-                const subTypeProps = 
-                    (assertNotNull(type.extends) 
-                    && (type.extends as types.TypeWrapper).getType().properties) as types.Property[];
+            it("should have the extends", () => {
 
-                props.length.should.equal(1);
-                props[0].name.should.equal("prop2");
-                props[0].type.should.equal(types.PropertyKeyword.number);
-                
-                subTypeProps.length.should.equal(1);
-                subTypeProps[0].name.should.equal("prop1");
-                subTypeProps[0].type.should.equal(types.PropertyKeyword.string);
+                extended.getType().name.should.be.eq("My1");
+                (extended.getType().aliases as types.Properties).properties.length.should.eq(1);
+                (extended.getType().aliases as types.Properties).properties[0].name.should.eq("prop1");
+                (extended.getType().aliases as types.Properties).properties[0].type.should.eq(types.PropertyKeyword.string);
             });
         });
     }
@@ -250,149 +253,99 @@ describe("nodeParser", function () {
     inheritance("interface");
 
     describe("type recursion", () => {
-        const type = resolveType(`interface My1 { prop1: My1 }`, "My1");
+        const type = resolveType(`interface My1 { prop1: My1 }`, "My1") as types.AliasedType;
 
         it("should construct interface properly", () => {
             type.name.should.be.eq("My1");
-            const props = type.properties as types.Property[];
-            props.length.should.be.eq(1);
-            props[0].name.should.be.eq("prop1");
-            props[0].type.constructor.should.be.eq(types.TypeWrapper);
+            (type.aliases as types.Properties).properties.length.should.be.eq(1);
+            (type.aliases as types.Properties).properties[0].name.should.be.eq("prop1");
+            (type.aliases as types.Properties).properties[0].type.should.be.instanceof(types.LazyTypeReference);
         });
 
         it("should have the same type reference for interface and property", () => {
-            const props = type.properties as types.Property[];
-            (props[0].type as types.TypeWrapper).getType().should.be.eq(type);
+            const propType = ((type.aliases as types.Properties).properties[0].type as types.LazyTypeReference).getType();
+            propType.should.be.eq(type);
         });
     });
 
-    describe("union types", () => {
-        const type1 = resolveType(`type T1 = string | number | boolean`, "T1");
+    function binaryTypes(combinator: types.BinaryTypeCombinator) {
+        const name = combinator === types.BinaryTypeCombinator.Union ? "union" : "intersection";
+        const t = combinator === types.BinaryTypeCombinator.Union ? "|" : "&";
+
+        describe(name + " types", () => {
+            describe("horizontal", () => {
+
+                const type = resolveType(`type T1 = string ${t} number ${t} boolean`, "T1") as types.AliasedType;
+                const stringNumberType = (type.aliases as types.BinaryType).left as types.BinaryType;
+                const booleanType = (type.aliases as types.BinaryType).right;
+
+                it("should construct type properly", () => {
+                    type.name.should.be.eq("T1");
+                    type.aliases.should.be.instanceof(types.BinaryType);
+                    stringNumberType.should.be.instanceof(types.BinaryType);
+
+                    (type.aliases as types.BinaryType).combinator.should.be.eq(combinator);
+                    stringNumberType.combinator.should.be.eq(combinator);
+                });
+
+                it("should use correct types", () => {
+                    booleanType.should.eq(types.PropertyKeyword.boolean);
+                    stringNumberType.left.should.eq(types.PropertyKeyword.string);
+                    stringNumberType.right.should.eq(types.PropertyKeyword.number);
+                });
+            });
+            
+            describe("nested", () => {
+
+                const type = resolveType(`type T1 = string; type T2 = {val: string}; type T3 = T1 ${t} T2`, "T3") as types.AliasedType;
+                const left = (type.aliases as types.BinaryType).left as types.LazyTypeReference;
+                const right = (type.aliases as types.BinaryType).right as types.LazyTypeReference;
+
+                it("should construct type properly", () => {
+                    type.name.should.be.eq("T3");
+                    left.should.be.instanceof(types.LazyTypeReference);
+                    right.should.be.instanceof(types.LazyTypeReference);
+
+                    (type.aliases as types.BinaryType).combinator.should.eq(combinator);
+                });
+
+                it("should construct left correctly", () => {
+                    left.getType().name.should.eq("T1");
+                    left.getType().aliases.should.eq(types.PropertyKeyword.string);
+                });
+
+                it("should construct right correctly", () => {
+                    right.getType().name.should.eq("T2");
+                    (right.getType().aliases as types.Properties).properties.length.should.eq(1);
+                    (right.getType().aliases as types.Properties).properties[0].name.should.eq("val");
+                    (right.getType().aliases as types.Properties).properties[0].type.should.eq(types.PropertyKeyword.string);
+                });
+            });
+        });
+    }
+
+    binaryTypes(types.BinaryTypeCombinator.Union);
+    binaryTypes(types.BinaryTypeCombinator.Intersection);
+    
+    describe("intersection and union types combined", () => {
+
+        const type = resolveType(`type T1 = string & number | boolean`, "T1") as types.AliasedType;
+        const stringNumberType = (type.aliases as types.BinaryType).left as types.BinaryType;
+        const booleanType = (type.aliases as types.BinaryType).right;
 
         it("should construct type properly", () => {
-            type1.name.should.be.eq("T1");
-            type1.properties.length.should.be.eq(0);
-            if (assertNotNull(type1.extends)) {
-                const fullUnion = type1.extends as types.BinaryType;
-                fullUnion.combinator.should.eq(types.BinaryTypeCombinator.Union);
-                (fullUnion.left as types.BinaryType).combinator.should.eq(types.BinaryTypeCombinator.Union);
-                
-                const left = ((fullUnion.left as types.BinaryType).left as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                left.keyword.should.eq("string");
-                
-                const middle = ((fullUnion.left as types.BinaryType).right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                middle.keyword.should.eq("number");
-                
-                const right = (fullUnion.right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                right.keyword.should.eq("boolean");
-            }
+            type.name.should.be.eq("T1");
+            type.aliases.should.be.instanceof(types.BinaryType);
+            stringNumberType.should.be.instanceof(types.BinaryType);
+
+            (type.aliases as types.BinaryType).combinator.should.be.eq(types.BinaryTypeCombinator.Union);
+            stringNumberType.combinator.should.be.eq(types.BinaryTypeCombinator.Intersection);
         });
 
-        const type2 = resolveType(`type T1 = string; type T2 = {val: string}; type T3 = T1 | T2`, "T3");
-        it("should construct nested type properly", () => {
-            type2.name.should.be.eq("T3");
-            type2.properties.length.should.be.eq(0);
-            
-            if (assertNotNull(type2.extends)) {
-                const fullUnion = type2.extends as types.BinaryType;
-                fullUnion.combinator.should.eq(types.BinaryTypeCombinator.Union);
-                
-                const left = (fullUnion.left as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                left.keyword.should.eq("string");
-                
-                const right = (fullUnion.right as types.TypeWrapper).getType().properties
-                right.length.should.eq(1);
-                right[0].name.should.eq("val");
-                (right[0].type as types.PropertyKeyword).should.eq(types.PropertyKeyword.string);
-            }
+        it("should use correct types", () => {
+            booleanType.should.eq(types.PropertyKeyword.boolean);
+            stringNumberType.left.should.eq(types.PropertyKeyword.string);
+            stringNumberType.right.should.eq(types.PropertyKeyword.number);
         });
     });
-
-    describe("intersection types", () => {
-        const type1 = resolveType(`type T1 = string & number & boolean`, "T1");
-
-        it("should construct type properly", () => {
-            type1.name.should.be.eq("T1");
-            type1.properties.length.should.be.eq(0);
-            if (assertNotNull(type1.extends)) {
-                const fullIntersection = type1.extends as types.BinaryType;
-                fullIntersection.combinator.should.eq(types.BinaryTypeCombinator.Intersection);
-                (fullIntersection.left as types.BinaryType).combinator.should.eq(types.BinaryTypeCombinator.Intersection);
-                
-                const left = ((fullIntersection.left as types.BinaryType).left as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                left.keyword.should.eq("string");
-                
-                const middle = ((fullIntersection.left as types.BinaryType).right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                middle.keyword.should.eq("number");
-                
-                const right = (fullIntersection.right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                right.keyword.should.eq("boolean");
-            }
-        });
-
-        const type2 = resolveType(`type T1 = string; type T2 = {val: string}; type T3 = T1 & T2`, "T3");
-        it("should construct nested type properly", () => {
-            type2.name.should.be.eq("T3");
-            type2.properties.length.should.be.eq(0);
-            
-            if (assertNotNull(type2.extends)) {
-                const fullIntersection = type2.extends as types.BinaryType;
-                fullIntersection.combinator.should.eq(types.BinaryTypeCombinator.Intersection);
-                
-                const left = (fullIntersection.left as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-                left.keyword.should.eq("string");
-                
-                const right = (fullIntersection.right as types.TypeWrapper).getType().properties
-                right.length.should.eq(1);
-                right[0].name.should.eq("val");
-                (right[0].type as types.PropertyKeyword).should.eq(types.PropertyKeyword.string);
-            }
-        });
-    });
-
-    // describe("intersection and union types combined", () => {
-    //     const type1 = resolveType(`type T1 = string | number & boolean`, "T1");
-
-    //     it("should construct type properly", () => {
-    //         type1.name.should.be.eq("T1");
-    //         type1.properties.length.should.be.eq(0);
-    //         if (assertNotNull(type1.extends)) {
-    //             const fullIntersection = type1.extends as types.BinaryType;
-    //             fullIntersection.combinator.should.eq(types.BinaryTypeCombinator.Intersection, "outer");
-    //             (fullIntersection.left as types.BinaryType).combinator.should.eq(types.BinaryTypeCombinator.Intersection, "inner");
-                
-    //             const left = ((fullIntersection.left as types.BinaryType).left as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-    //             left.keyword.should.eq("string");
-                
-    //             const middle = ((fullIntersection.left as types.BinaryType).right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-    //             middle.keyword.should.eq("number");
-                
-    //             const right = (fullIntersection.right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-    //             right.keyword.should.eq("boolean");
-    //         }
-    //     });
-    // });
-
-    // describe("intersection and union types combined, inverted", () => {
-    //     const type1 = resolveType(`type T1 = string & number | boolean`, "T1");
-
-    //     it("should construct type properly", () => {
-    //         type1.name.should.be.eq("T1");
-    //         type1.properties.length.should.be.eq(0);
-    //         if (assertNotNull(type1.extends)) {
-    //             const fullIntersection = type1.extends as types.BinaryType;
-    //             fullIntersection.combinator.should.eq(types.BinaryTypeCombinator.Intersection, "outer");
-    //             (fullIntersection.left as types.BinaryType).combinator.should.eq(types.BinaryTypeCombinator.Intersection, "inner");
-                
-    //             const left = ((fullIntersection.left as types.BinaryType).left as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-    //             left.keyword.should.eq("string");
-                
-    //             const middle = ((fullIntersection.left as types.BinaryType).right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-    //             middle.keyword.should.eq("number");
-                
-    //             const right = (fullIntersection.right as types.TypeWrapper).getType().extends as types.PropertyKeyword;
-    //             right.keyword.should.eq("boolean");
-    //         }
-    //     });
-    // });
 });

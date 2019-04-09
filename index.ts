@@ -1,16 +1,16 @@
 import { validate as validateType, CompilerArgs } from "./src/validator/validate";
-import { deserialize, SerializableType } from "./src/validation-rewriter/typeSerializer";
+import { deserialize, WrapperKind } from "./src/validation-rewriter/typeSerializers";
 import { moduleName } from "./src/const";
 import { LazyDictionary } from "./src/utils/lazyDictionary";
-import { Type } from "./src/validation-rewriter/types";
+import { AliasedType } from "./src/validation-rewriter/types";
 
 let 
 	_keyMap: {[k: string]: string} = null as any,
-	_types: LazyDictionary<string, Type> = null as any,
+	_types: LazyDictionary<AliasedType> = null as any,
 	_compilerArgs: CompilerArgs = null as any;
 
 let initialized = false;
-function init(keyMap: {[k: string]: string}, types: {[k: string]: SerializableType}, compilerArgs: CompilerArgs) {
+function init(keyMap: {[k: string]: string}, types: {[k: string]: WrapperKind<any>}, compilerArgs: CompilerArgs) {
 	if (initialized) return;
 	initialized = true;
 

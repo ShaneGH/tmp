@@ -1,6 +1,7 @@
 import * as ts from 'typescript';
 import { visitNodesInScope } from '../utils/astUtils';
-import { resolveType as resolveTypeNode, Type, PropertyKeyword } from './types';
+import { PropertyKeyword, AliasedType } from './types';
+import { LazyDictionary } from '../utils/lazyDictionary';
 
 
 function pad(text: string, pad: number) {
@@ -47,45 +48,37 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
     });
 }
 
-function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile, fileRelativePath: string): Type {
-    if (propertyKeywords[expr.kind]) {
-        return {
-            id: propertyKeywords[expr.kind].keyword,
-            name: propertyKeywords[expr.kind].keyword,
-            properties: [],
-            extends: propertyKeywords[expr.kind]
-        };
-    }
-
-    if (ts.isIdentifier(expr)) {
-        // undefined is handled a little differently
-        if (expr.escapedText.toString() === "undefined") {
-            return {
-                name: propertyKeywords[ts.SyntaxKind.UndefinedKeyword].keyword,
-                id: propertyKeywords[ts.SyntaxKind.UndefinedKeyword].keyword,
-                properties: [],
-                extends: propertyKeywords[ts.SyntaxKind.UndefinedKeyword]
-            };
-        }
-        
-        const varDec = findVariableDeclaration(expr, file);
-        if (!varDec) {
-            throw new Error(`Cannot find declaration of variable: ${expr.getFullText(file)}`);
+function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
+    return function (resolve: (type: ts.TypeNode) => T | null): T | PropertyKeyword {
+        if (propertyKeywords[expr.kind]) {
+            return propertyKeywords[expr.kind];
         }
 
-        if (varDec.type) {
-            const t = resolveTypeNode(varDec.type, file, fileRelativePath);
-            if (!t) {
-                throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
+        if (ts.isIdentifier(expr)) {
+            // undefined is handled a little differently
+            if (expr.escapedText.toString() === "undefined") {
+                return propertyKeywords[ts.SyntaxKind.UndefinedKeyword];
+            }
+            
+            const varDec = findVariableDeclaration(expr, file);
+            if (!varDec) {
+                throw new Error(`Cannot find declaration of variable: ${expr.getFullText(file)}`);
             }
 
-            return t;
+            if (varDec.type) {
+                const t = resolve(varDec.type);
+                if (!t) {
+                    throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
+                }
+
+                return t;
+            }
+
+            throw new Error("TODO: https://github.com/ShaneGH/ts-validator/issues/7");
         }
 
-        throw new Error("TODO: https://github.com/ShaneGH/ts-validator/issues/7");
+        throw new Error(`Cannot resolve type for object: ${expr.getFullText(file)}`);
     }
-
-    throw new Error(`Cannot resolve type for object: ${expr.getFullText(file)}`);
 }
 
 export {

@@ -1,8 +1,9 @@
-import { Type } from "../validation-rewriter/types";
-import { serialize } from "../validation-rewriter/typeSerializer";
+import { serialize } from "../validation-rewriter/typeSerializers";
 import { EOL } from  'os'
 import { CompilerArgs } from "../validator/validate";
 import { moduleName } from "../const";
+import { AliasedType, PropertyType, Type, PropertyKeyword, BinaryType } from "../validation-rewriter/types";
+import { LazyDictionary } from "../utils/lazyDictionary";
 
 interface ICodeFile {
 
@@ -47,21 +48,27 @@ class CodeWriter implements ICodeFile {
     }
 }
 
-export function generateValidateFile (types: {[key: string]: Type}, compilerArgs: CompilerArgs): ICodeFile {
+export function generateValidateFile (types: {key: string, value: Type}[], compilerArgs: CompilerArgs): ICodeFile {
 
-    const typesList: Type[] = [];
-    const keyMap: {[key: string]: string} = {};
-    const done: {[key: string]: boolean} = {};
+    let i = 0;
+    const aliasedTypes = types
+        .map(x => {
+            if (x.value instanceof AliasedType) return x as {key: string, value: AliasedType};
+            const key = x.value instanceof PropertyKeyword
+                ? `keyword: ${x.value.keyword}`
+                : `anonymous: ${++i}`;
 
-    for(var k in types) {
-        keyMap[k] = types[k].id;
-        if (done[types[k].id]) continue;
-        
-         done[types[k].id] = true;
-         typesList.push(types[k]);
-    }
+            return {
+                key: x.key,
+                value: new AliasedType(key, key, x.value)
+            };
+        });
 
-    const typesS = serialize(typesList);
+    const serailizableTypes = serialize(
+        aliasedTypes.map(a => a.value));
+
+    const keyMap = aliasedTypes
+        .reduce((s, x) => { return s[x.key] = x.value.id, s; }, {} as {[key: string]: string});
 
     const writer = new CodeWriter();
 
@@ -81,13 +88,13 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
     writer.writeLine('};');
 
     writer.writeLine();
-    writer.writeLine('var types = {');
+    writer.writeLine('var aliasedTypes = {');
     writer.tabbed(() => {
         Object
-            .keys(typesS)
+            .keys(serailizableTypes)
             .forEach(k => {
                 const kSafe = k.replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-                const vSafe = JSON.stringify(typesS[k]);
+                const vSafe = JSON.stringify(serailizableTypes[k]);
                 writer.writeLine(`"${kSafe}": ${vSafe},`);
             });
     });
@@ -98,7 +105,7 @@ export function generateValidateFile (types: {[key: string]: Type}, compilerArgs
 
     writer.writeLine();
     writer.writeLine('function initInternal () {');
-    writer.writeTabbedLine('init(keyMap, types, compilerArgs);');
+    writer.writeTabbedLine('init(keyMap, aliasedTypes, compilerArgs);');
     writer.writeLine('}');
 
     writer.writeLine();

@@ -1,4 +1,4 @@
-import { Type, PropertyKeyword, TypeWrapper, PropertyType, BinaryType, BinaryTypeCombinator, ExtendsTypes } from "../validation-rewriter/types";
+import { PropertyKeyword, PropertyType, BinaryType, BinaryTypeCombinator, LazyTypeReference, Properties, AliasedType } from "../validation-rewriter/types";
 
 type CompilerArgs = {
     strictNullChecks: boolean
@@ -12,7 +12,22 @@ function validateKeyword(value: any, keyword: PropertyKeyword, compilerArgs: Com
     return keyword.validate(value);
 }
 
-function validateProperty(propertyValue: any, propertyType: PropertyType, compilerArgs: CompilerArgs) {
+function validateBinaryType(value: any, propertyType: BinaryType, compilerArgs: CompilerArgs): boolean {
+    switch (propertyType.combinator) {
+        case BinaryTypeCombinator.Intersection:
+            return validateProperty(value, propertyType.left, compilerArgs) &&
+                validateProperty(value, propertyType.right, compilerArgs);
+            
+        case BinaryTypeCombinator.Union:
+            return validateProperty(value, propertyType.left, compilerArgs) ||
+                validateProperty(value, propertyType.right, compilerArgs);
+
+        default:
+            throw new Error(`Invalid complex type combinator: ${propertyType.combinator}`);
+    }
+}
+
+function validateProperty(propertyValue: any, propertyType: PropertyType, compilerArgs: CompilerArgs): boolean {
     if (propertyValue == null && !compilerArgs.strictNullChecks) {
         return true;
     }
@@ -21,83 +36,35 @@ function validateProperty(propertyValue: any, propertyType: PropertyType, compil
         return validateKeyword(propertyValue, propertyType, compilerArgs);
     }
     
-    if (propertyType instanceof TypeWrapper) {
+    if (propertyType instanceof LazyTypeReference) {
         return validate(propertyValue, propertyType.getType(), compilerArgs);
     }
 
     if (propertyValue == null) {
         return false;
     }
-
-    for (var i = 0; i < propertyType.properties.length; i++) {
-        const pv = propertyValue[propertyType.properties[i].name];
-        if (!validateProperty(pv, propertyType.properties[i].type, compilerArgs)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-function validate(subject: any, type: Type, compilerArgs: CompilerArgs) {
     
-    function validateExtends(type: ExtendsTypes) {
-        if (type instanceof TypeWrapper) {
-            if (!validate(subject, type.getType(), compilerArgs)) {
+    if (propertyType instanceof Properties) {
+        for (var i = 0; i < propertyType.properties.length; i++) {
+            const pv = propertyValue[propertyType.properties[i].name];
+            if (!validateProperty(pv, propertyType.properties[i].type, compilerArgs)) {
                 return false;
-            }
-        } else if (type instanceof PropertyKeyword) {
-            if (!type.validate(subject)) {
-                return false;
-            }
-        } else {
-            switch (type.combinator) {
-                case BinaryTypeCombinator.Intersection:
-                    const intersectionResult = 
-                         validateExtends(type.left) &&
-                         validateExtends(type.right);
-
-                    if (!intersectionResult) return false;
-                    break;
-                    
-                case BinaryTypeCombinator.Union:
-                    const unionResult = 
-                         validateExtends(type.left) ||
-                         validateExtends(type.right);
-
-                    if (!unionResult) return false;
-                    break;
-
-                default:
-                    throw new Error(`Invalid complex type combinator: ${type.combinator}`);
             }
         }
 
         return true;
     }
-
-    if (subject == null) {
-        if (!compilerArgs.strictNullChecks) {
-            return true;
-        }
-
-        // TODO: check if type extends null or undefined
-        return  false;
-    }
     
-    for (let i = 0; i < type.properties.length; i++) {
-        if (!validateProperty(subject[type.properties[i].name], type.properties[i].type, compilerArgs)) {
-            return false;
-        }
+    return validateBinaryType(propertyValue, propertyType, compilerArgs);
+}
+
+function validate(subject: any, type: PropertyType | AliasedType, compilerArgs: CompilerArgs) {
+
+    if (type instanceof AliasedType) {
+        type = type.aliases;
     }
 
-    if (type.extends) {
-        if (!validateExtends(type.extends)) {
-            return false;
-        }
-    }
-
-    return true;
+    return validateProperty(subject, type, compilerArgs);
 }
 
 export {

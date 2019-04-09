@@ -1,39 +1,42 @@
 
 const noValue = {};
-export abstract class LazyDictionary<TKey, TValue> {
+export class LazyDictionary<TValue> {
     private values: {[key: string]: () => TValue} = {}
 
-    /** Add an item to the dictionary if another item does not exist. Returns the added or existing item or the */
-    tryAdd(keyBase: TKey, value: (key: string) => TValue) {
-        const key = this.buildKey(keyBase);
+    /** Add an item to the dictionary if another item does not exist. Returns the added or existing item. Caches items after first evaluation */
+    tryAdd(key: string, value: () => TValue) {
         if (this.values[key]) {
-            return this.values[key];
+            return {
+                key,
+                value: this.values[key]
+            };
         }
 
         let val: TValue = noValue as any;
-        return this.values[key] = function () {
-            return val === noValue 
-                ? (val = value(key))
-                : val;
+        return {
+            key,
+            value: this.values[key] = function () {
+                return val === noValue 
+                    ? (val = value())
+                    : val;
+            }
         };
     }
 
-    tryGet(keyBase: TKey): (() => TValue) | undefined {
-        const key = this.buildKey(keyBase);
-        return this.values[key] || undefined;
+    tryGet(key: string): (() => TValue) | null {
+        return this.values[key] || null;
     }
 
-    getLazy(keyBase: TKey): () => TValue {
+    getLazy(key: string): () => TValue {
         return () => {
-            const result = this.tryGetLazy(keyBase)();
-            if (result === undefined) throw this.buildKeyNotFoundError(keyBase);
+            const result = this.tryGetLazy(key)();
+            if (result === undefined) throw this.buildKeyNotFoundError(key);
 
             return result;
         };
     }
 
-    tryGetLazy(keyBase: TKey): () => (TValue | undefined) {
-        const key = this.buildKey(keyBase);
+    tryGetLazy(key: string): () => (TValue | undefined) {
         return () => {
             const result = this.values[key];
             if (!result) return undefined;
@@ -57,9 +60,7 @@ export abstract class LazyDictionary<TKey, TValue> {
         return result;
     }
 
-    protected buildKeyNotFoundError(key: TKey) {
-        return new Error(`Could not find value for key: ${this.buildKey(key)}.`);
+    protected buildKeyNotFoundError(key: string) {
+        return new Error(`Could not find value for key: ${key}.`);
     }
-
-    protected abstract buildKey(key: TKey): string;
 }

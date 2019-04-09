@@ -2,33 +2,16 @@ import * as ts from 'typescript';
 import { visitNodesInScope } from '../utils/astUtils';
 import { LazyDictionary } from '../utils/lazyDictionary';
 
-function pad(text: string, pad: number) {
-    var p = "";
-    for (var i = 0; i < pad; i++) p += "  ";
+class ResolveTypeState {
+    
+    results: LazyDictionary<AliasedType>
 
-    return text.split("\n").map(x => pad + "-" + p + x).join("\n");
-}
+    constructor(private _fileRelativePath: string, dictionary?: LazyDictionary<AliasedType>) {
+        this.results = dictionary || new LazyDictionary<AliasedType>();
+    }
 
-function print(node: ts.Node, recurse = true, level = 0) {
-    console.log(pad(ts.SyntaxKind[node.kind] + ": " + node.getFullText(), level));
-    if (recurse) node.getChildren().map(x => print(x, recurse, level + 1));
-}
-
-class ExternalReference {
-    constructor(public reference: string) { }
-}
-
-class PropertiesWrapper {
-    constructor(public properties: Property[]) { }
-}
-
-class TypeWrapper {
-    constructor(private type: () => Type) { }
-
-    getType() {
-        return this.type instanceof Function
-            ? this.type()
-            : this.type;
+    buildKey(key: ts.Node) {
+        return `${key.pos}-${key.end}, ${this._fileRelativePath}`;
     }
 }
 
@@ -55,48 +38,50 @@ class PropertyKeyword {
     }
 }
 
-type PropertyType = 
-    PropertyKeyword
-    // | "Date" 
-    // | "Regexp" 
-    // | Function  // constructor
-    | PropertiesWrapper
-    | TypeWrapper
-//    | ExternalReference;
-
-type Property = {
-    name: string,
-    type: PropertyType
-};
-
-type ExtendsTypes = TypeWrapper | PropertyKeyword | BinaryType
-
 enum BinaryTypeCombinator {
     Intersection = 1,
     Union
+} 
+
+class Property {
+    constructor (public name: string, public type: PropertyType) {}
 }
 
-class BinaryType {
-    constructor(public left: ExtendsTypes, public right: ExtendsTypes, public combinator: BinaryTypeCombinator) {
+class Properties {
+    constructor (public properties: Property[]) {}
+}
+
+class AliasedType {
+    constructor (public id: string, public name: string, public aliases: BinaryType | PropertyKeyword | LazyTypeReference | Properties) {
     }
 }
 
-type Type = {
-    name: string,
-    id: string,
-    properties: Property[]
-    extends: ExtendsTypes | null
-};
+class LazyTypeReference {
+    constructor(public id: string, private type: () => AliasedType) { }
 
-function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary, file: ts.SourceFile): Property {
+    getType() {
+        return this.type();
+    }
+}
+
+class BinaryType {
+    constructor(public left: PropertyType, public right: PropertyType, public combinator: BinaryTypeCombinator) {
+    }
+}
+
+type CommonType = BinaryType | PropertyKeyword | Properties;
+type PropertyType = LazyTypeReference | CommonType;
+type Type = CommonType | AliasedType;
+
+function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, state: ResolveTypeState, file: ts.SourceFile): Property {
     if (!ts.isPropertySignature(node) && !ts.isPropertyDeclaration(node)) {
         throw new Error(`Member ${node.getText(file)} is not supported.`);
     }
 
-    return getProperty(node, dictionary, file);
+    return getProperty(node, state, file);
 }
 
-function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): Property {
+function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state: ResolveTypeState, file: ts.SourceFile): Property {
     if (!node.type) {
         throw new Error(`Member ${node.getText(file)} is not supported.`);
     }
@@ -106,17 +91,17 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
     }
 
     if (propertyKeywords[node.type.kind]) {
-        return {
-            name: node.name.escapedText.toString(),
-            type: propertyKeywords[node.type.kind]
-        };
+        const k = node.type.kind;
+        return new Property(
+            node.name.escapedText.toString(),
+            propertyKeywords[k]);
     }
 
     if (ts.isTypeLiteralNode(node.type)) {
-        return {
-            name: node.name.escapedText.toString(),
-            type: new PropertiesWrapper(node.type.members.map(x => getPropertyForClassOrInterface(x, dictionary, file)))
-        };
+        return new Property(
+            node.name.escapedText.toString(),
+            new Properties(
+                node.type.members.map(x => getPropertyForClassOrInterface(x, state, file))));
     }
 
     if (ts.isTypeReferenceNode(node.type)) {
@@ -124,61 +109,32 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, dictio
             throw new Error(`Member ${node.getText(file)} is not supported.`);
         }
 
-        const result = resolveType(node.type.typeName, dictionary, file);
+        const result = resolveType(node.type.typeName, state, file);
         if (!result) {
             throw new Error(`Cannot find type ${node.type.typeName.getText(file)} for property ${node.name.escapedText.toString()}.`);
         }
 
-        return {
-            name: node.name.escapedText.toString(),
-            type: new TypeWrapper(result)
-        };
+        return new Property(
+            node.name.escapedText.toString(),
+            result);
     }
     
     throw new Error(`Member ${node.getText(file)} is not supported.`);
-
-        // const children = propType.getChildren();
-        // if (children.length !== 1 || children[0].kind != ts.SyntaxKind.SyntaxList) {
-        //     throw new Error("TODO: cannot understand union type 1");
-        // }
-
-        // let unionTypes: PropertyType[] = [];
-        // const unionParts = children[0].getChildren();
-        // for (var i = 0; i < unionParts.length; i++) {
-        //     const t = buildPropertyType(unionParts[i]);
-        //     if (!t) {
-        //         print(children[0]);
-        //         throw new Error("TODO: cannot understand union type 2");
-        //     }
-
-        //     unionTypes = unionTypes.concat(t);
-
-        //     i++;
-        //     if (i < unionParts.length && unionParts[i].kind !== ts.SyntaxKind.BarToken) {
-        //         throw new Error("TODO: cannot understand union type 3");
-        //     }
-        // }
-
-        // if (!unionTypes.length) {
-        //     throw new Error("TODO: cannot understand union type 4");
-        // }
-
-        // return unionTypes;
 }
 
-function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, dictionary: TypeDictionary, file: ts.SourceFile): Property[] {
+function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, state: ResolveTypeState, file: ts.SourceFile): Property[] {
 
     if (ts.isInterfaceDeclaration(node)) {
-        return node.members.map(x => getPropertyForClassOrInterface(x, dictionary, file));
+        return node.members.map(x => getPropertyForClassOrInterface(x, state, file));
     } else if (ts.isClassDeclaration(node)) {
-        return node.members.map(x => getPropertyForClassOrInterface(x, dictionary, file));
+        return node.members.map(x => getPropertyForClassOrInterface(x, state, file));
     }
 
-    return node.members.map(x => getPropertyForClassOrInterface(x, dictionary, file));
+    return node.members.map(x => getPropertyForClassOrInterface(x, state, file));
 }
 
-function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary, file: ts.SourceFile): () => Type {
-    const t = resolveType(type, dictionary, file);
+function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile): PropertyType {
+    const t = resolveType(type, state, file);
     if (!t) {
         throw new Error(`Cannot resolve type for ${type.getText(file)}`);
     }
@@ -186,26 +142,25 @@ function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary:
     return t;
 }
 
-function buildExtends (extendsNames: ts.Identifier[], dictionary: TypeDictionary, file: ts.SourceFile): ExtendsTypes | null {
-    if (!extendsNames.length) return null;
+function buildExtends (extendsNames: ts.Identifier[], state: ResolveTypeState, file: ts.SourceFile): PropertyType {
+    if (!extendsNames.length) throw new Error("You must extend at least one type");
 
-    const first = new TypeWrapper(
-        resolveTypeWithNullError(extendsNames[0], dictionary, file));
+    const first = resolveTypeWithNullError(extendsNames[0], state, file);
 
     return extendsNames
         .slice(1)
         .reduce((s, x) => new BinaryType(
             s,
-            new TypeWrapper(
-                resolveTypeWithNullError(x, dictionary, file)),
-            BinaryTypeCombinator.Intersection), first as ExtendsTypes);
+            resolveTypeWithNullError(x, state, file),
+            BinaryTypeCombinator.Intersection), first);
 }
 
-function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): () => Type {
+function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, state: ResolveTypeState, file: ts.SourceFile): LazyTypeReference {
         
-    return dictionary.tryAdd(node, function (id) {
+    const id = state.buildKey(node);
+    const result = state.results.tryAdd(id, function (): AliasedType {
 
-        const extendesInterfaces: ts.Identifier[] = [];
+        const extendsInterfaces: ts.Identifier[] = [];
         if (node.heritageClauses) {
             for (var i = 0; i < (node.heritageClauses || []).length; i++) {
                 if (node.heritageClauses[i].token !== ts.SyntaxKind.ExtendsKeyword) {
@@ -223,90 +178,97 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
                     }
 
                     // https://github.com/ShaneGH/ts-validator/issues/16
-                    extendesInterfaces.push(type.expression);
+                    extendsInterfaces.push(type.expression);
                 }
             }
         }
 
-        // https://github.com/ShaneGH/ts-validator/issues/13
-        return {
-            name,
-            id,
-            properties: getProperties(node, dictionary, file),
-            extends: buildExtends(extendesInterfaces, dictionary, file)
-        };
+        const properties = getProperties(node, state, file);
+        if (properties.length && extendsInterfaces.length) {
+            return new AliasedType(id, name, 
+                new BinaryType(
+                    new Properties(properties),
+                    buildExtends(extendsInterfaces, state, file),
+                    BinaryTypeCombinator.Intersection));
+
+        } else if (extendsInterfaces.length) {
+            return new AliasedType(id, name, buildExtends(extendsInterfaces, state, file));
+        } else {
+            return new AliasedType(id, name, new Properties(properties));
+        }
     });
+
+    return new LazyTypeReference(result.key, result.value);
+}
+ 
+function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile) {
+    const result = resolveType(type, state, file);
+    if (!result) {
+        throw new Error(`Could not resolve type: ${type.getText(file)}`);
+    }
+    
+    return result;
 }
 
-function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): (() => Type) {
- 
-    function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier) {
-        const result = resolveType(type, dictionary, file);
-        if (!result) {
-            throw new Error(`Could not resolve type: ${node.getText(file)}`);
-        }
-        
-        return result;
+function buildBinaryType(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile): PropertyType | null {
+    if (!node.types.length) {
+        return null;
     }
 
-    return dictionary.tryAdd(node, function (id) {
+    const combinator = node.kind === ts.SyntaxKind.UnionType
+        ? BinaryTypeCombinator.Union
+        : BinaryTypeCombinator.Intersection;
+
+    const types = node.types.map(x => resolveTypeOrThrow(x, state, file));
+
+    return types
+        .slice(1)
+        .reduce((s, x) => 
+            new BinaryType(s, x, combinator), 
+            types[0]);
+}
+ 
+function buildBinaryTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile): PropertyType {
+    const result = buildBinaryType(node, state, file);
+    if (!result) {
+        throw new Error(`Could not resolve type: ${node.getText(file)}`);
+    }
+    
+    return result;
+}
+
+function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: ResolveTypeState, file: ts.SourceFile) {
+
+    const id = state.buildKey(node);
+    const result = state.results.tryAdd(id, function () {
 
         if (ts.isTypeLiteralNode(node.type)) {
-            return {
+            return new AliasedType(
                 id,
                 name,
-                properties: getProperties(node.type, dictionary, file),
-                extends: null
-            };
+                new Properties(getProperties(node.type, state, file)));
         } else if (ts.isTypeReferenceNode(node.type)) {
-            return {
+            return new AliasedType(
                 id,
                 name,
-                properties: [],
-                extends: new TypeWrapper(resolveTypeOrThrow(node.type))
-            };
+                resolveTypeOrThrow(node.type, state, file));
         } else if (propertyKeywords[node.type.kind]) {
-            return {
-                id,
-                name,
-                properties: [],
-                extends: propertyKeywords[node.type.kind]
-            };
+            return new AliasedType(id, name, propertyKeywords[node.type.kind]);
         } else if (ts.isUnionTypeNode(node.type) || ts.isIntersectionTypeNode(node.type)) {
-            if (!node.type.types.length) {
-                return {
-                    id,
-                    name,
-                    properties: [],
-                    extends: null
-                };
+            const result = buildBinaryType(node.type, state, file);
+            if (!result) {
+                return new AliasedType(id, name, new Properties([]));
             }
 
-            const combinator = node.type.kind === ts.SyntaxKind.UnionType
-                ? BinaryTypeCombinator.Union
-                : BinaryTypeCombinator.Intersection;
-
-            const extendsPart = node.type.types
-                .slice(1)
-                .reduce((s, x) => 
-                    new BinaryType(
-                        s, 
-                        new TypeWrapper(resolveTypeOrThrow(x)), 
-                        combinator), 
-                    new TypeWrapper(resolveTypeOrThrow(node.type.types[0])) as ExtendsTypes);
-
-            return {
-                id,
-                name,
-                properties: [],
-                extends: extendsPart
-            };
+            return new AliasedType(id, name, result);
         } else {
 
             //throw new Error(`DEBUG 1: ${ts.SyntaxKind[node.type.kind]} ${node.getText(file)}`);
             throw new Error(`Unsupported type: ${node.getText(file)}`);
         }
     });
+
+    return new LazyTypeReference(result.key, result.value);
 }
 
 const propertyKeywords: {[key: number]: PropertyKeyword} = {};
@@ -320,25 +282,13 @@ propertyKeywords[ts.SyntaxKind.NeverKeyword] = PropertyKeyword.never;
 propertyKeywords[ts.SyntaxKind.UnknownKeyword] = PropertyKeyword.unknown;
 propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
 
-class TypeDictionary extends LazyDictionary<ts.Node, Type> {
-    
-    constructor(private _fileRelativePath: string) {
-        super();
-    }
-
-    protected buildKey(key: ts.Node) {
-        return `${key.pos}-${key.end}, ${this._fileRelativePath}`;
-    }
-}
-
-function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictionary, file: ts.SourceFile): (() => Type) | null {
+function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile) {
     if (propertyKeywords[type.kind]) {
-        return () => ({
-            id: propertyKeywords[type.kind].keyword,
-            name: propertyKeywords[type.kind].keyword,
-            properties: [],
-            extends: propertyKeywords[type.kind]
-        });
+        return propertyKeywords[type.kind];
+    }
+
+    if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
+        return buildBinaryTypeOrThrow(type, state, file);
     }
 
     let name: ts.EntityName;
@@ -357,12 +307,12 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
 
     if (typeName.length == 1) {
         return visitNodesInScope(type, x => {
-            if ((ts.isInterfaceDeclaration(x) || ts.isClassDeclaration(x)) && x.name && x.name.escapedText.toString() === typeName[0]) {
-                return buildClasssOrInterfaceType(typeName[0], x, dictionary, file);
-            } 
-            
-            if (ts.isTypeAliasDeclaration(x) && x.name.escapedText.toString() === typeName[0]) {
-                return buildTypeAliasType(typeName[0], x, dictionary, file);
+            if (ts.isInterfaceDeclaration(x) || ts.isClassDeclaration(x)) {
+                if (x.name && x.name.escapedText.toString() === typeName[0]) {
+                    return buildClasssOrInterfaceType(typeName[0], x, state, file);
+                }
+            } else if (ts.isTypeAliasDeclaration(x) && x.name.escapedText.toString() === typeName[0]) {
+                return buildTypeAliasType(typeName[0], x, state, file);
             }
         }) || null;
     } else {
@@ -372,21 +322,22 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
     }
 }
 
-function publicResolveType(type: ts.TypeNode | ts.Identifier, file: ts.SourceFile, fileRelativePath: string): Type | null {
-    const result = resolveType(type, new TypeDictionary(fileRelativePath), file);
-    return result ? result() : null;
+function publicResolveType(type: ts.TypeNode, file: ts.SourceFile, fileRelativePath: string, state?: LazyDictionary<AliasedType>): Type | null {
+    const result = resolveType(type, new ResolveTypeState(fileRelativePath, state), file);
+    if (!result) return null;
+
+    return result instanceof LazyTypeReference ? result.getType() : result;
 }
 
 export {
-    BinaryTypeCombinator,
+    AliasedType,
     BinaryType,
-    ExtendsTypes,
-    ExternalReference,
+    BinaryTypeCombinator,
+    LazyTypeReference,
+    Properties,
     Property,
     PropertyKeyword,
     PropertyType,
-    PropertiesWrapper,
     publicResolveType as resolveType,
-    Type,
-    TypeWrapper
+    Type
 }

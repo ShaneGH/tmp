@@ -25,7 +25,7 @@ describe("validator", function () {
         );
     }
 
-    function resolveType(code: string, typeName: string) {
+    function resolveType(code: string, typeName: string, testSerializer = true) {
         const file = createFile(code + "\nvar t: " + typeName + ";");
         const variableTypes = tsquery<ts.TypeReferenceNode>(file, "VariableDeclaration TypeReference");
         if (!variableTypes.length) {
@@ -39,11 +39,17 @@ describe("validator", function () {
             throw new Error("Could not resolve type.");
         }
 
+        if (!(type instanceof types.AliasedType)) {
+            print(file);
+            console.error(type);
+            throw new Error(`Error defining code. Expected TypeWithProperties or AliasedType`);
+        }
+
         if (type.name !== typeName) {
             print(file);
             throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
         }
-
+        
         return type;
     }
 

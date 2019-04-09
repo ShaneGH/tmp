@@ -1,7 +1,6 @@
 import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as rewriter from '../../src/validation-rewriter/rewrite';
-import { PropertyKeyword } from '../../src/validation-rewriter/types';
 
 chai.should();
 
@@ -95,116 +94,19 @@ describe("rewriter", function () {
         });
     });
 
-    describe("compile type literal and keyword tests", function () {
+    describe("record call node tests", function () {
             
-        it("should record string literal type", () => {
+        it("should record call node argument", () => {
             const file = createFile("import { validate } from 'ts-validator';\nvalidate('hello');");
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
-            result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
+            const callNode = result.typeKeys[0].value;
+            if (!ts.isStringLiteral(callNode)) {
+                false.should.be.eq(true, `Should be call expression ${ts.SyntaxKind[callNode.kind]}`);
+                return;
             }
 
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.string);
+            callNode.text.should.be.eq("hello");
         });
-            
-        it("should record number type", () => {
-            const file = createFile("import { validate } from 'ts-validator';\nvalidate(10);");
-            const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
-
-            result.typeKeys["testFile.ts?1"].name.should.equal("number");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
-            }
-
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.number);
-        });
-            
-        it("should record true type", () => {
-            const file = createFile("import { validate } from 'ts-validator';\nvalidate(true);");
-            const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
-
-            result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
-            }
-
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.boolean);
-        });
-            
-        it("should record false type", () => {
-            const file = createFile("import { validate } from 'ts-validator';\nvalidate(false);");
-            const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
-
-            result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
-            }
-
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.boolean);
-        });
-            
-        it("should record null type", () => {
-            const file = createFile("import { validate } from 'ts-validator';\nvalidate(null);");
-            const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
-
-            result.typeKeys["testFile.ts?1"].name.should.equal("null");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
-            }
-
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.null);
-        });
-            
-        it("should record undefined type", () => {
-            const file = createFile("import { validate } from 'ts-validator';\nvalidate(undefined);");
-            const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
-
-            result.typeKeys["testFile.ts?1"].name.should.equal("undefined");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
-            }
-
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.undefined);
-        });
-    });
-
-    describe("compile variable type tests", function () {
-            
-        it("should compile type when type is built in", () => {
-            const file = createFile(`import { validate } from 'ts-validator';
-let x: string = "hi";
-validate(x);`);
-            const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
-
-            result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
-                throw new Error("Extends is null");
-            }
-
-            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.string);
-        });
-
-    /* // https://github.com/ShaneGH/ts-validator/issues/7
-validate(someValue)
-validate({})
-validate({} as string)
-validate([])
-validate(new Date())
-validate(/sdsd/)
-validate(<string>{}) cast
-validate(<SomeTsxTag></SomeTsxTag>)
-
-     */
-
-    // describe("generic test", function () {
-            
-    //     const file = createFile("import * as validator from 'ts-validator';\nfunction val<T>(input: T) { validate(input); }");
-
-    //     it("should throw error with good error message", () => {
-    //         rewriter.rewrite(file, "tyLoc");
-    //     });
-    // });
     });
 });

@@ -3,8 +3,6 @@ import { tsquery } from '@phenomnomnominal/tsquery';
 import * as _ from 'lodash';
 import {isAncestor} from "../utils/astUtils";
 import {compareArrays} from "../utils/arrayUtils";
-import { resolveTypeForExpression } from "./resolver";
-import { Type } from "./types";
 import { moduleName, functionName } from "../const";
 
 function pad(text: string, pad: number) {
@@ -21,7 +19,7 @@ function print(node: ts.Node, recurse = true, level = 0) {
 
 type RewriteOutput = {
     file: ts.SourceFile,
-    typeKeys: {[k: string]: Type}
+    typeKeys: TypeKeys
 }
 
 class ImportGroupNode {
@@ -202,17 +200,10 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode, file: ts.Source
     return _.flatMap(result);
 }
 
-function getValidationType(node: ts.CallExpression, file: ts.SourceFile, fileRelativePath: string) {
-    if (!node.arguments || !node.arguments.length) {
-        throw new Error(`${node.getText(file)} is not a call to ${functionName}(...).`);
-    }
-    
-    return resolveTypeForExpression(node.arguments[0], file, fileRelativePath);
-}
-
-type TypeKeys = {[k: string]: ts.CallExpression}
+type CallKeys = {[k: string]: ts.CallExpression}
+type TypeKeys = {key: string, value: ts.Expression}[]
 const buildTransformer = 
-    (validateCalls: ts.CallExpression[], keys: TypeKeys, relativePath: string, file: ts.SourceFile) => 
+    (validateCalls: ts.CallExpression[], keys: CallKeys, relativePath: string, file: ts.SourceFile) => 
     <T extends ts.Node>(context: ts.TransformationContext) => 
     (rootNode: T) => {
 
@@ -330,6 +321,14 @@ function addCallInit(file: ts.SourceFile) {
     ]);
 }
 
+function getValidationType(node: ts.CallExpression, file: ts.SourceFile) {
+    if (!node.arguments || !node.arguments.length) {
+        throw new Error(`${node.getText(file)} is not a call to ${functionName}(...).`);
+    }
+    
+    return node.arguments[0];
+}
+
 function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFilePath: string): RewriteOutput {
 
     const importGroups = buildImportGroups(file);
@@ -341,21 +340,23 @@ function rewrite(file: ts.SourceFile, relativePathToTypes: string, relativeFileP
         ? addCallInit(file) 
         : file;
 
-    const keys: TypeKeys = {};
+    const keys: CallKeys = {};
     const result = ts.transform<ts.SourceFile>(
         file, 
         [buildTransformer(functionCalls, keys, relativeFilePath, file)]);
+    result.dispose();
 
     if (result.transformed.length !== 1) {
         throw new Error(`Unknown transform result count. Expected 1, got ${result.transformed.length}`);
     }
 
-    result.dispose();
-
-    const typeKeys: {[k: string]: Type} = {};
-    Object
+    const typeKeys = Object
         .keys(keys)
-        .forEach(k => typeKeys[k] = getValidationType(keys[k], file, relativeFilePath));
+        .map(x => ({
+            key: x,
+            value: getValidationType(keys[x], file)
+        }));
+        //.reduce((s, x) => { return s[x] = getValidationType(keys[x], file), s; }, {} as TypeKeys);
 
     return {
         file: result.transformed[0],

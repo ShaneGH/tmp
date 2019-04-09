@@ -3,6 +3,9 @@ import { rewrite } from '../validation-rewriter/rewrite'
 import * as ts from 'typescript'
 import _ = require('lodash');
 import { moduleName } from '../const';
+import { resolveTypeForExpression } from '../validation-rewriter/resolver';
+import { LazyDictionary } from '../utils/lazyDictionary';
+import { AliasedType, resolveType, Type } from '../validation-rewriter/types';
 
 const tsValidatorFile = moduleName + "-types.ts";
 const printer: ts.Printer = ts.createPrinter();
@@ -43,7 +46,13 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
         rewritten.file.fileName,
         printer.printFile(rewritten.file));
 
-    const validateFile = generateValidateFile(rewritten.typeKeys, {strictNullChecks: true});
+    const state = new LazyDictionary<AliasedType>();
+    const typeMap = rewritten.typeKeys.map(tk => ({
+        key: tk.key,
+        value: resolveTypeForExpression<Type>(tk.value, rewritten.file)(x => resolveType(x, rewritten.file, fileRelativePath, state))
+    }));
+
+    const validateFile = generateValidateFile(typeMap, {strictNullChecks: true});
     const location = dependencies.joinPath(proj, tsValidatorFile);
         
     await dependencies.writeFile(
