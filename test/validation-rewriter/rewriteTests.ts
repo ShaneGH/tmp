@@ -7,7 +7,10 @@ chai.should();
 
 describe("rewriter", function () {
     
-    function isNotNull<T>(x: T | null): x is T {
+    function assertNotNull<T>(x: T | null): x is T {
+        if (x === undefined) x = null;
+        chai.assert.isNotNull(x);
+
         return true;
     }
 
@@ -99,7 +102,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 
@@ -111,7 +114,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("number");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 
@@ -123,7 +126,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 
@@ -135,7 +138,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 
@@ -147,7 +150,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("null");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 
@@ -159,7 +162,7 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("undefined");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 
@@ -176,7 +179,7 @@ validate(x);`);
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+            if (!assertNotNull(result.typeKeys["testFile.ts?1"].extends)) {
                 throw new Error("Extends is null");
             }
 

@@ -194,13 +194,11 @@ function buildExtends (extendsNames: ts.Identifier[], dictionary: TypeDictionary
 
     return extendsNames
         .slice(1)
-        .reduce((s, x) => {
-            return new BinaryType(
-                s,
-                new TypeWrapper(
-                    resolveTypeWithNullError(x, dictionary, file)),
-                BinaryTypeCombinator.Intersection);
-        }, first as ExtendsTypes);
+        .reduce((s, x) => new BinaryType(
+            s,
+            new TypeWrapper(
+                resolveTypeWithNullError(x, dictionary, file)),
+            BinaryTypeCombinator.Intersection), first as ExtendsTypes);
 }
 
 function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): () => Type {
@@ -236,12 +234,21 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
             id,
             properties: getProperties(node, dictionary, file),
             extends: buildExtends(extendesInterfaces, dictionary, file)
-        } as Type;
+        };
     });
 }
 
 function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): (() => Type) {
+ 
+    function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier) {
+        const result = resolveType(type, dictionary, file);
+        if (!result) {
+            throw new Error(`Could not resolve type: ${node.getText(file)}`);
+        }
         
+        return result;
+    }
+
     return dictionary.tryAdd(node, function (id) {
 
         if (ts.isTypeLiteralNode(node.type)) {
@@ -252,16 +259,11 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
                 extends: null
             };
         } else if (ts.isTypeReferenceNode(node.type)) {
-            const result = resolveType(node.type, dictionary, file);
-            if (!result) {
-                throw new Error(`Could not resolve type: ${node.getText(file)}`);
-            }
-
             return {
                 id,
                 name,
                 properties: [],
-                extends: new TypeWrapper(result)
+                extends: new TypeWrapper(resolveTypeOrThrow(node.type))
             };
         } else if (propertyKeywords[node.type.kind]) {
             return {
@@ -270,8 +272,38 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
                 properties: [],
                 extends: propertyKeywords[node.type.kind]
             };
+        } else if (ts.isUnionTypeNode(node.type) || ts.isIntersectionTypeNode(node.type)) {
+            if (!node.type.types.length) {
+                return {
+                    id,
+                    name,
+                    properties: [],
+                    extends: null
+                };
+            }
+
+            const combinator = node.type.kind === ts.SyntaxKind.UnionType
+                ? BinaryTypeCombinator.Union
+                : BinaryTypeCombinator.Intersection;
+
+            const extendsPart = node.type.types
+                .slice(1)
+                .reduce((s, x) => 
+                    new BinaryType(
+                        s, 
+                        new TypeWrapper(resolveTypeOrThrow(x)), 
+                        combinator), 
+                    new TypeWrapper(resolveTypeOrThrow(node.type.types[0])) as ExtendsTypes);
+
+            return {
+                id,
+                name,
+                properties: [],
+                extends: extendsPart
+            };
         } else {
 
+            //throw new Error(`DEBUG 1: ${ts.SyntaxKind[node.type.kind]} ${node.getText(file)}`);
             throw new Error(`Unsupported type: ${node.getText(file)}`);
         }
     });
@@ -315,7 +347,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
     } else if  (ts.isTypeReferenceNode(type)) {
         name = type.typeName;
     } else {
-        // https://github.com/ShaneGH/ts-validator/issues/16
+        // throw new Error(`DEBUG 2: ${ts.SyntaxKind[type.kind]} ${type.getText(file)}`);
         throw new Error(`Unsupported type: ${type.getText(file)}.`);
     }
     
@@ -335,6 +367,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
         }) || null;
     } else {
         // https://github.com/ShaneGH/ts-validator/issues/16
+        // throw new Error(`DEBUG 3: ${ts.SyntaxKind[type.kind]} ${type.getText(file)}`);
         throw new Error(`Unsupported type: ${type.getText(file)}.`);
     }
 }
