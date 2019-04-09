@@ -1,4 +1,4 @@
-import { Type, TypeWrapper, PropertyKeyword, PropertyType, PropertiesWrapper, ExtendsTypes } from './types';
+import { Type, TypeWrapper, PropertyKeyword, PropertyType, PropertiesWrapper, ExtendsTypes, BinaryTypeCombinator, BinaryType } from './types';
 import { LazyDictionary } from '../utils/lazyDictionary';
 
 class TypeDictionary extends LazyDictionary<string, Type> {
@@ -42,17 +42,24 @@ type SerializableProperty = {
     type: SerializablePropertyType
 };
 
+type SerializableBinaryType = {
+    left: SerializableExtendsTypes,
+    right: SerializableExtendsTypes,
+    combinator: BinaryTypeCombinator
+};
+
 const serializableTypeIdUtils = buildWrapperType<string>();
 const serializablePropertyKeywordUtils = buildWrapperType<SerializablePropertyKeyword>();
 const serializablePropertyWrapperUtils = buildWrapperType<SerializableProperty[]>();
+const serializableBinaryTypeWrapperUtils = buildWrapperType<SerializableBinaryType>();
 
-type SerializableExtendsTypes = WrapperKind<string> | WrapperKind<SerializablePropertyKeyword>
+type SerializableExtendsTypes = WrapperKind<string> | WrapperKind<SerializablePropertyKeyword> | WrapperKind<SerializableBinaryType>
 
 type SerializableType = {
     name: string,
     id: string,
     properties: SerializableProperty[]
-    extends: SerializableExtendsTypes[]
+    extends: SerializableExtendsTypes | null
 };
 
 function serializePropertyType(results: Dict<SerializableType>, p: PropertyType): SerializablePropertyType {
@@ -94,16 +101,31 @@ function serializeExtends(results: Dict<SerializableType>, current: ExtendsTypes
         serializeTypeAndAddToResults(results, current.getType());
         return serializableTypeIdUtils.build(current.getType().id);
     }
+    
+    if (current instanceof PropertyKeyword) {
+        return serializablePropertyKeywordUtils.build({ keyword: current.keyword});
+    }
 
-    return serializablePropertyKeywordUtils.build({ keyword: current.keyword});
+    return serializableBinaryTypeWrapperUtils.build({
+        left: serializeExtends(results, current.left),
+        right: serializeExtends(results, current.right),
+        combinator: current.combinator
+    });
 }
 
 function deserializeExtends(results: TypeDictionary, current: SerializableExtendsTypes): ExtendsTypes {
     if (serializableTypeIdUtils.is(current)) {
         return new TypeWrapper(results.getLazy(current.value))
     }
+    
+    if (serializablePropertyKeywordUtils.is(current)) {
+        return PropertyKeyword.value(current.value.keyword);
+    }
 
-    return PropertyKeyword.value(current.value.keyword);
+    return new BinaryType(
+        deserializeExtends(results, current.value.left),
+        deserializeExtends(results, current.value.right),
+        current.value.combinator);
 }
 
 type Dict<T> = {[key: string]: T};
@@ -115,13 +137,9 @@ function serializeTypeAndAddToResults (results: Dict<SerializableType>, current:
     results[current.id] = {
         name: current.name,
         id: current.id,
-        extends: [],
+        extends: (current.extends && serializeExtends(results, current.extends)) || null,
         properties: []
     };
-
-    for (var i = 0; i < current.extends.length; i++) {
-        results[current.id].extends.push(serializeExtends(results, current.extends[i]));
-    }
 
     for (var i = 0; i < current.properties.length; i++) {
         results[current.id].properties.push({
@@ -136,7 +154,7 @@ function deserializeTypeAndAddToResults (results: TypeDictionary, current: Seria
     results.tryAdd(current.id, key => ({
         id: key,
         name: current.name,
-        extends: current.extends.map(x => deserializeExtends(results, x)),
+        extends: (current.extends && deserializeExtends(results, current.extends)) || null,
         properties: current.properties.map(x => ({
             name: x.name,
             type: deserializePropertyType(results, x.type)

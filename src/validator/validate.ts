@@ -1,4 +1,4 @@
-import { Type, PropertyKeyword, TypeWrapper, PropertyType } from "../validation-rewriter/types";
+import { Type, PropertyKeyword, TypeWrapper, PropertyType, BinaryType, BinaryTypeCombinator, ExtendsTypes } from "../validation-rewriter/types";
 
 type CompilerArgs = {
     strictNullChecks: boolean
@@ -40,6 +40,41 @@ function validateProperty(propertyValue: any, propertyType: PropertyType, compil
 }
 
 function validate(subject: any, type: Type, compilerArgs: CompilerArgs) {
+    
+    function validateExtends(type: ExtendsTypes) {
+        if (type instanceof TypeWrapper) {
+            if (!validate(subject, type.getType(), compilerArgs)) {
+                return false;
+            }
+        } else if (type instanceof PropertyKeyword) {
+            if (!type.validate(subject)) {
+                return false;
+            }
+        } else {
+            switch (type.combinator) {
+                case BinaryTypeCombinator.Intersection:
+                    const intersectionResult = 
+                         validateExtends(type.left) &&
+                         validateExtends(type.right);
+
+                    if (!intersectionResult) return false;
+                    break;
+                    
+                case BinaryTypeCombinator.Union:
+                    const unionResult = 
+                         validateExtends(type.left) ||
+                         validateExtends(type.right);
+
+                    if (!unionResult) return false;
+                    break;
+
+                default:
+                    throw new Error(`Invalid complex type combinator: ${type.combinator}`);
+            }
+        }
+
+        return true;
+    }
 
     if (subject == null) {
         if (!compilerArgs.strictNullChecks) {
@@ -56,17 +91,8 @@ function validate(subject: any, type: Type, compilerArgs: CompilerArgs) {
         }
     }
 
-    for (let i = 0; i < type.extends.length; i++) {
-        const ex = type.extends[i];
-        if (ex instanceof TypeWrapper) {
-            if (!validate(subject, ex.getType(), compilerArgs)) {
-                return false;
-            }
-
-            continue;
-        }
-
-        if (!ex.validate(subject)) {
+    if (type.extends) {
+        if (!validateExtends(type.extends)) {
             return false;
         }
     }

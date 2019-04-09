@@ -53,7 +53,7 @@ function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile, file
             id: propertyKeywords[expr.kind].keyword,
             name: propertyKeywords[expr.kind].keyword,
             properties: [],
-            extends: [propertyKeywords[expr.kind]]
+            extends: propertyKeywords[expr.kind]
         };
     }
 
@@ -64,7 +64,7 @@ function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile, file
                 name: propertyKeywords[ts.SyntaxKind.UndefinedKeyword].keyword,
                 id: propertyKeywords[ts.SyntaxKind.UndefinedKeyword].keyword,
                 properties: [],
-                extends: [propertyKeywords[ts.SyntaxKind.UndefinedKeyword]]
+                extends: propertyKeywords[ts.SyntaxKind.UndefinedKeyword]
             };
         }
         

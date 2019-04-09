@@ -116,21 +116,55 @@ describe("validator", function () {
     });
 
     describe("extends tests", () => {
-        function execute (typeName: string, typeValue: any) {
-            const t2 = resolveType(`interface T1 {x: ${typeName}}\r\ninterface T2 extends T1 { }`, "T2");
+        describe("single inheritance", () => {
+            function execute (typeName: string, typeValue: any) {
+                const t2 = resolveType(`interface T1 {x: ${typeName}}\r\ninterface T2 extends T1 { }`, "T2");
 
-            it(`should validate ${typeName} prop`, () => {
-                validate({x: typeValue}, t2, buildCompilerArgs()).should.eq(true);
+                it(`should validate ${typeName} prop`, () => {
+                    validate({x: typeValue}, t2, buildCompilerArgs()).should.eq(true);
+                });
+
+                const notValue = typeName === "number" ? "not a number" : 7;
+                it(`should invalidate non ${typeName} prop`, () => {
+                    validate({x: notValue}, t2, buildCompilerArgs()).should.eq(false);
+                });
+            }
+
+            execute("string", "hello");
+            execute("number", 4);
+        });
+        
+        describe("multiple inheritance, horizontal", () => {
+            const t2 = resolveType(`interface T1 {x: string}\r\ninterface T2 {y: number}\r\ninterface T3 extends T1, T2 { }`, "T3");
+
+            it(`should validate if both props ok`, () => {
+                validate({x: "hi", y: 6}, t2, buildCompilerArgs()).should.eq(true);
             });
 
-            const notValue = typeName === "number" ? "not a number" : 7;
-            it(`should invalidate non ${typeName} prop`, () => {
-                validate({x: notValue}, t2, buildCompilerArgs()).should.eq(false);
+            it(`should not validate if one prop is bad`, () => {
+                validate({x: "hi", y: "6"}, t2, buildCompilerArgs()).should.eq(false);
             });
-        }
 
-        execute("string", "hello");
-        execute("number", 4);
+            it(`should not validate if one other is bad`, () => {
+                validate({y: 6}, t2, buildCompilerArgs()).should.eq(false);
+            });
+        });
+        
+        describe("multiple inheritance, vertical", () => {
+            const t2 = resolveType(`interface T1 {x: string}\r\ninterface T2 extends T1 {y: number}\r\ninterface T3 extends T2 { }`, "T3");
+
+            it(`should validate if both props ok`, () => {
+                validate({x: "hi", y: 6}, t2, buildCompilerArgs()).should.eq(true);
+            });
+
+            it(`should not validate if one prop is bad`, () => {
+                validate({x: "hi", y: "6"}, t2, buildCompilerArgs()).should.eq(false);
+            });
+
+            it(`should not validate if one other is bad`, () => {
+                validate({y: 6}, t2, buildCompilerArgs()).should.eq(false);
+            });
+        });
     });
 
     describe("type alias tests", () => {

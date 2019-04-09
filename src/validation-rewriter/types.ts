@@ -1,5 +1,4 @@
 import * as ts from 'typescript';
-import { tsquery } from '@phenomnomnominal/tsquery';
 import { visitNodesInScope } from '../utils/astUtils';
 import { LazyDictionary } from '../utils/lazyDictionary';
 
@@ -70,13 +69,23 @@ type Property = {
     type: PropertyType
 };
 
-type ExtendsTypes = TypeWrapper | PropertyKeyword
+type ExtendsTypes = TypeWrapper | PropertyKeyword | BinaryType
+
+enum BinaryTypeCombinator {
+    Intersection = 1,
+    Union
+}
+
+class BinaryType {
+    constructor(public left: ExtendsTypes, public right: ExtendsTypes, public combinator: BinaryTypeCombinator) {
+    }
+}
 
 type Type = {
     name: string,
     id: string,
     properties: Property[]
-    extends: ExtendsTypes[]
+    extends: ExtendsTypes | null
 };
 
 function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, dictionary: TypeDictionary, file: ts.SourceFile): Property {
@@ -177,6 +186,23 @@ function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, dictionary:
     return t;
 }
 
+function buildExtends (extendsNames: ts.Identifier[], dictionary: TypeDictionary, file: ts.SourceFile): ExtendsTypes | null {
+    if (!extendsNames.length) return null;
+
+    const first = new TypeWrapper(
+        resolveTypeWithNullError(extendsNames[0], dictionary, file));
+
+    return extendsNames
+        .slice(1)
+        .reduce((s, x) => {
+            return new BinaryType(
+                s,
+                new TypeWrapper(
+                    resolveTypeWithNullError(x, dictionary, file)),
+                BinaryTypeCombinator.Intersection);
+        }, first as ExtendsTypes);
+}
+
 function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, dictionary: TypeDictionary, file: ts.SourceFile): () => Type {
         
     return dictionary.tryAdd(node, function (id) {
@@ -209,8 +235,8 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
             name,
             id,
             properties: getProperties(node, dictionary, file),
-            extends: extendesInterfaces.map(x => new TypeWrapper(resolveTypeWithNullError(x, dictionary, file)))
-        };
+            extends: buildExtends(extendesInterfaces, dictionary, file)
+        } as Type;
     });
 }
 
@@ -223,7 +249,7 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
                 id,
                 name,
                 properties: getProperties(node.type, dictionary, file),
-                extends: []
+                extends: null
             };
         } else if (ts.isTypeReferenceNode(node.type)) {
             const result = resolveType(node.type, dictionary, file);
@@ -235,14 +261,14 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, diction
                 id,
                 name,
                 properties: [],
-                extends: [new TypeWrapper(result)]
+                extends: new TypeWrapper(result)
             };
         } else if (propertyKeywords[node.type.kind]) {
             return {
                 id,
                 name,
                 properties: [],
-                extends: [propertyKeywords[node.type.kind]]
+                extends: propertyKeywords[node.type.kind]
             };
         } else {
 
@@ -279,7 +305,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, dictionary: TypeDictiona
             id: propertyKeywords[type.kind].keyword,
             name: propertyKeywords[type.kind].keyword,
             properties: [],
-            extends: [propertyKeywords[type.kind]]
+            extends: propertyKeywords[type.kind]
         });
     }
 
@@ -319,6 +345,8 @@ function publicResolveType(type: ts.TypeNode | ts.Identifier, file: ts.SourceFil
 }
 
 export {
+    BinaryTypeCombinator,
+    BinaryType,
     ExtendsTypes,
     ExternalReference,
     Property,

@@ -6,6 +6,10 @@ import { PropertyKeyword } from '../../src/validation-rewriter/types';
 chai.should();
 
 describe("rewriter", function () {
+    
+    function isNotNull<T>(x: T | null): x is T {
+        return true;
+    }
 
     function createFile(text: string) {
         return ts.createSourceFile(
@@ -95,7 +99,11 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.string);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.string);
         });
             
         it("should record number type", () => {
@@ -103,7 +111,11 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("number");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.number);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.number);
         });
             
         it("should record true type", () => {
@@ -111,7 +123,11 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.boolean);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.boolean);
         });
             
         it("should record false type", () => {
@@ -119,7 +135,11 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("boolean");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.boolean);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.boolean);
         });
             
         it("should record null type", () => {
@@ -127,7 +147,11 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("null");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.null);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.null);
         });
             
         it("should record undefined type", () => {
@@ -135,7 +159,11 @@ describe("rewriter", function () {
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("undefined");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.undefined);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.undefined);
         });
     });
 
@@ -148,7 +176,11 @@ validate(x);`);
             const result = rewriter.rewrite(file, "tyLoc", "testFile.ts");
 
             result.typeKeys["testFile.ts?1"].name.should.equal("string");
-            result.typeKeys["testFile.ts?1"].extends[0].should.equal(PropertyKeyword.string);
+            if (!isNotNull(result.typeKeys["testFile.ts?1"].extends)) {
+                throw new Error("Extends is null");
+            }
+
+            result.typeKeys["testFile.ts?1"].extends.should.equal(PropertyKeyword.string);
         });
 
     /* // https://github.com/ShaneGH/ts-validator/issues/7
