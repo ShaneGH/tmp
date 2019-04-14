@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { visitNodesInScope } from './utils/astUtils';
-import { LazyDictionary, AliasedType, Property, Properties, MultiType, MultiTypeCombinator, PropertyType, LazyTypeReference, PropertyKeyword, Type } from 'ts-validator.core';
+import { LazyDictionary, AliasedType, Property, Properties, MultiType, MultiTypeCombinator, PropertyType, LazyTypeReference, PropertyKeyword, Type, ArrayType } from 'ts-validator.core';
 
 class ResolveTypeState {
     
@@ -195,7 +195,8 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: 
 
             return new AliasedType(id, name, result);
         } else if (ts.isArrayTypeNode(type)) {
-            throw new Error("###################");
+            return new AliasedType(id, name, 
+                new ArrayType(resolveTypeWithNullError(type.elementType, state, file)));
         } else {
 
             throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${node.getText(file)}`);

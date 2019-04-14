@@ -37,7 +37,7 @@ export class Properties {
 }
 
 export class AliasedType {
-    constructor (public id: string, public name: string, public aliases: MultiType | PropertyKeyword | LazyTypeReference | Properties) {
+    constructor (public id: string, public name: string, public aliases: PropertyType) {
     }
 }
 
@@ -55,9 +55,9 @@ export class MultiType {
 }
 
 export class ArrayType {
-    constructor(public type: Type) { }
+    constructor(public type: PropertyType) { }
 }
 
-export type CommonType = MultiType | PropertyKeyword | Properties;// | ArrayType;
+export type CommonType = MultiType | PropertyKeyword | Properties | ArrayType;
 export type PropertyType = LazyTypeReference | CommonType;
 export type Type = CommonType | AliasedType;

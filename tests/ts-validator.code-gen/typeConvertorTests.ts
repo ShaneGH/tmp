@@ -385,24 +385,26 @@ describe("nodeParser", function () {
         });
     });
     
-    // describe("array types", () => {
+    describe("array types", () => {
 
-    //     const type = resolveType(`type T1 = string[]`, "T1") as types.AliasedType;
-    //     const propertiesType = (type.aliases as types.MultiType).types[0] as types.Properties;
-    //     const numberType = (type.aliases as types.MultiType).types[1] as types.PropertyKeyword;
+        it("should construct type properly", () => {
+            const type = resolveType(`type T1 = string[]`, "T1") as types.AliasedType;
 
-    //     it("should construct type properly", () => {
-    //         type.name.should.be.eq("T1");
-    //         type.aliases.should.be.instanceof(types.MultiType);
-    //         propertiesType.should.be.instanceof(types.Properties);
-    //         numberType.should.be.instanceof(types.PropertyKeyword);
-    //     });
+            type.name.should.be.eq("T1");
+            type.should.be.instanceof(types.AliasedType);
+            type.aliases.should.be.instanceof(types.ArrayType);
+            
+            (type.aliases as types.ArrayType).type.should.eq(types.PropertyKeyword.string);
+        });
 
-    //     it("should use correct types", () => {
-    //         numberType.should.eq(types.PropertyKeyword.number);
-    //         propertiesType.properties.length.should.eq(1);
-    //         propertiesType.properties[0].name.should.eq("val");
-    //         propertiesType.properties[0].type.should.eq(types.PropertyKeyword.string);
-    //     });
-    // });
+        it("should construct more complex type properly", () => {
+            const type = resolveType(`type T1 = ({val: number} | boolean)[]`, "T1") as types.AliasedType;
+
+            type.name.should.be.eq("T1");
+            type.should.be.instanceof(types.AliasedType);
+            type.aliases.should.be.instanceof(types.ArrayType);
+            
+            (type.aliases as types.ArrayType).type.should.be.instanceof(types.MultiType);
+        });
+    });
 });

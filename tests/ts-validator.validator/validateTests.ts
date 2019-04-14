@@ -192,6 +192,31 @@ describe("validator", function () {
         execute("number", 4);
     });
 
+    describe("array tests", () => {
+        function execute (typeName: string, typeValue: any) {
+            const t1 = resolveType(`type T1 = string[];`, "T1");
+
+            it(`should validate correct array`, () => {
+                validate(["hi"], t1, buildCompilerArgs()).should.eq(true);
+            });
+
+            it(`should validate empty array`, () => {
+                validate([], t1, buildCompilerArgs()).should.eq(true);
+            });
+
+            it(`should not validate non array`, () => {
+                validate("hi", t1, buildCompilerArgs()).should.eq(false);
+            });
+
+            it(`should not validate incorrect array`, () => {
+                validate([4], t1, buildCompilerArgs()).should.eq(false);
+            });
+        }
+
+        execute("string", "hello");
+        execute("number", 4);
+    });
+
     describe("strictNullChecks", () => {
         describe("input is null or undefined and no null checks", () => {
             const compilerArgs = buildCompilerArgs({strictNullChecks: false});

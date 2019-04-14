@@ -1,4 +1,4 @@
-import { PropertyKeyword, Property, Properties, LazyTypeReference, MultiType, MultiTypeCombinator, AliasedType } from "./types";
+import { PropertyKeyword, Property, Properties, LazyTypeReference, MultiType, MultiTypeCombinator, AliasedType, ArrayType } from "./types";
 import { LazyDictionary } from "./lazyDictionary";
 
 let kindBuilder = 0;
@@ -23,6 +23,8 @@ function buildWrapperType<T>() {
         }
     }
 };
+
+const arrayS = buildWrapperType<WrapperKind<any>>();
 
 const aliasS = buildWrapperType<AliasTypeS>();
 type AliasTypeS = {
@@ -63,6 +65,10 @@ function serialize(value: AliasedType[]) {
                 type: serializeSingle(p.type)
             };
         }
+
+        if (value instanceof ArrayType) {
+            return  arrayS.build(serializeSingle(value.type));
+        }
         
         if (value instanceof Property) {
             return propertyS.build(serProperty(value));
@@ -89,7 +95,7 @@ function serialize(value: AliasedType[]) {
             toDo.push(value.getType());
             return lazyTypeReferenceS.build(value.id);
         }
-
+        
         throw new Error("Serialization error 1");
     }
 
@@ -118,6 +124,11 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
                 p.name,
                 deserializeSingle(p.type));
         }
+
+        if (arrayS.is(value)) {
+            return new ArrayType(
+                deserializeSingle(value.value));
+        }
         
         if (propertyS.is(value)) {
             return dserProperty(value.value);
@@ -139,8 +150,6 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
         if (MultiTypeS.is(value)) {
             return new MultiType(
                 value.value.types.map(deserializeSingle),
-                // deserializeSingle(value.value.left),
-                // deserializeSingle(value.value.right),
                 value.value.combinator);
         }
         
@@ -162,7 +171,6 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
         }
 
         // TODO: message
-        console.log(value)
         throw new Error("Deserialization error 1");
     }
 

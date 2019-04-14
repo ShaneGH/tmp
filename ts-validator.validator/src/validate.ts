@@ -1,4 +1,4 @@
-import { PropertyKeyword, PropertyType, MultiType, MultiTypeCombinator, LazyTypeReference, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
+import { PropertyKeyword, PropertyType, MultiType, MultiTypeCombinator, LazyTypeReference, ArrayType, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
 
 function validateKeyword(value: any, keyword: PropertyKeyword, compilerArgs: CompilerArgs) {
     if (value == null && !compilerArgs.strictNullChecks) {
@@ -54,6 +54,20 @@ function validateProperty(propertyValue: any, propertyType: PropertyType, compil
         for (var i = 0; i < propertyType.properties.length; i++) {
             const pv = propertyValue[propertyType.properties[i].name];
             if (!validateProperty(pv, propertyType.properties[i].type, compilerArgs)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    if (propertyType instanceof ArrayType) {
+        if (!(propertyValue instanceof Array)) {
+            return false;
+        }
+
+        for (var i = 0; i < propertyValue.length; i++) {
+            if (!validate(propertyValue[i], propertyType.type, compilerArgs)) {
                 return false;
             }
         }
