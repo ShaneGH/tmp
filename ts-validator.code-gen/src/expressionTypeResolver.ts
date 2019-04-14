@@ -25,10 +25,24 @@ propertyKeywords[ts.SyntaxKind.UndefinedKeyword] = PropertyKeyword.undefined;
 
 // TODO: not sure how this function deals with the var
 // keyword, and multiple usages of the same word
+// https://github.com/ShaneGH/ts-validator/issues/35
 function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
 
     const variableName = variable.escapedText.toString();
     return visitNodesInScope(variable, x => {
+
+        if (ts.isFunctionDeclaration(x) || ts.isArrowFunction(x)) {
+            for (var i = 0; i < x.parameters.length; i++) {
+                const p = x.parameters[i];
+                if (!ts.isIdentifier(p.name)) {
+                    throw new Error(`Binding patterns are not supported: ${x.getText(file)}`);
+                }
+
+                if (p.name.text === variableName) {
+                    return p;
+                }
+            }
+        }
 
         if (!ts.isVariableStatement(x)) return null;
 
@@ -75,6 +89,8 @@ function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
                 return t;
             } else if (varDec.initializer) {
                 return resolveTypeForExpression<T>(varDec.initializer, file)(resolve);
+            } else {
+                return PropertyKeyword.any;
             }
         }
 

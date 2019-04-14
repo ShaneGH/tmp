@@ -46,7 +46,7 @@ validate(x);`);
             
             it("implicit", () => {
                 const file = createFile(`import { validate } from 'ts-validator.validator';
-let x = ${value};
+const x = ${value};
 validate(x);`);
                 const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
                 const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
@@ -150,5 +150,79 @@ validate(<SomeTsxTag></SomeTsxTag>)
     //         rewriter.rewrite(file, "tyLoc");
     //     });
     // });
+    });
+
+    describe("variable without type", () => {
+        
+        it("should resolve var without type as any", () => {
+            const file = createFile(`import { validate } from 'ts-validator.validator';
+var x;
+validate(x);`);
+
+            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            result.should.eq(PropertyKeyword.any);
+        });
+    });
+
+    describe("type from function args", () => {
+        it("should resolve arg with type", () => {
+            const file = createFile(`import { validate } from 'ts-validator.validator';
+function doSomething(x: string) {
+    validate(x);
+}`);
+
+            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            (result as ts.TypeNode).kind.should.eq(ts.SyntaxKind.StringKeyword);
+        });
+        
+        it("should resolve arg without type as any", () => {
+            const file = createFile(`import { validate } from 'ts-validator.validator';
+function doSomething(x) {
+    validate(x);
+}`);
+
+            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            result.should.eq(PropertyKeyword.any);
+        });
+    });
+
+    describe("type from arrow function args", () => {
+        it("should resolve arg with type", () => {
+            const file = createFile(`import { validate } from 'ts-validator.validator';
+const doSomething = (x: string) => {
+    validate(x);
+}`);
+
+            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            (result as ts.TypeNode).kind.should.eq(ts.SyntaxKind.StringKeyword);
+        });
+        
+        it("should resolve arg without type as any", () => {
+            const file = createFile(`import { validate } from 'ts-validator.validator';
+const doSomething = (x) => {
+    validate(x);
+}`);
+
+            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            result.should.eq(PropertyKeyword.any);
+        });
+    });
+
+    describe("functions with dotdotdot args", () => {
+        it("should resolve arg with type", () => {
+            const file = createFile(`import { validate } from 'ts-validator.validator';
+const doSomething = (...x: string[]) => {
+    validate(x);
+}`);
+
+            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            (result as ts.TypeNode).kind.should.eq(ts.SyntaxKind.ArrayType);
+        });
     });
 });
