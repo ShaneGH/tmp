@@ -1,0 +1,1 @@
+Testing is done in ts-validator.tests project

@@ -1,0 +1,22 @@
+{
+  "name": "ts-validator.validator",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node \"./node_modules/typescript/lib/tsc.js\"",
+    "test": "echo \"Tests are run from \"../tests\"\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "ts-validator.core": "file:../ts-validator.core"
+  },
+  "devDependencies": {
+    "@phenomnomnominal/tsquery": "^3.0.0",
+    "@types/chai": "^4.1.7",
+    "@types/mocha": "^5.2.6",
+    "chai": "^4.2.0",
+    "mocha": "^6.1.3"
+  }
+}

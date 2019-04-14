@@ -1,0 +1,21 @@
+{
+  "name": "ts-validator.code-gen",
+  "version": "0.1.0",
+  "description": "",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node \"./node_modules/typescript/lib/tsc.js\"",
+    "test": "echo \"Tests are run from \"../tests\"\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "3.4.3"
+  },
+  "dependencies": {
+    "@types/lodash": "^4.14.123",
+    "@types/node": "^11.13.4",
+    "lodash": "^4.17.11",
+    "ts-validator.core": "file:../ts-validator.core"
+  }
+}

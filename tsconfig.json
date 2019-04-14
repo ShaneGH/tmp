@@ -1,22 +1,9 @@
 {
     "compilerOptions": {
-        "outDir": "./test/testBin",
-        "module": "umd",
-        "moduleResolution": "node",
-        "noImplicitAny": true,
-        "strictNullChecks": true,
-        "removeComments": true,
-        "preserveConstEnums": true,
-        "sourceMap": false
+        "outDir": "./testBin"
     },
+    "extends": "./tsconfigBase.json",
     "include": [
-        "src/**/*",
-        "test/**/*",
-        "index.ts",
-        "build.ts"
-    ],
-    "exclude": [
-        "node_modules",
-        "**/*.spec.ts"
+        "tests/**/*"
     ]
 }
