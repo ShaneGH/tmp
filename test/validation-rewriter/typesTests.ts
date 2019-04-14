@@ -348,4 +348,25 @@ describe("nodeParser", function () {
             stringNumberType.right.should.eq(types.PropertyKeyword.number);
         });
     });
+    
+    describe("binary type with properties", () => {
+
+        const type = resolveType(`type T1 = {val: string} & number`, "T1") as types.AliasedType;
+        const propertiesType = (type.aliases as types.BinaryType).left as types.Properties;
+        const numberType = (type.aliases as types.BinaryType).right as types.PropertyKeyword;
+
+        it("should construct type properly", () => {
+            type.name.should.be.eq("T1");
+            type.aliases.should.be.instanceof(types.BinaryType);
+            propertiesType.should.be.instanceof(types.Properties);
+            numberType.should.be.instanceof(types.PropertyKeyword);
+        });
+
+        it("should use correct types", () => {
+            numberType.should.eq(types.PropertyKeyword.number);
+            propertiesType.properties.length.should.eq(1);
+            propertiesType.properties[0].name.should.eq("val");
+            propertiesType.properties[0].type.should.eq(types.PropertyKeyword.string);
+        });
+    });
 });

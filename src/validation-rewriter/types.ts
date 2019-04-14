@@ -100,8 +100,7 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state:
     if (ts.isTypeLiteralNode(node.type)) {
         return new Property(
             node.name.escapedText.toString(),
-            new Properties(
-                node.type.members.map(x => getPropertyForClassOrInterface(x, state, file))));
+            new Properties(getProperties(node.type, state, file)));
     }
 
     if (ts.isTypeReferenceNode(node.type)) {
@@ -176,8 +175,7 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
                     if (type.typeArguments && type.typeArguments.length) {
                         throw new Error(`Generics are not supported yet ${type.expression.getText(file)}`);
                     }
-
-                    // https://github.com/ShaneGH/ts-validator/issues/16
+                    
                     extendsInterfaces.push(type.expression);
                 }
             }
@@ -291,6 +289,10 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
         return buildBinaryTypeOrThrow(type, state, file);
     }
 
+    if (ts.isTypeLiteralNode(type)) {
+        return new Properties(getProperties(type, state, file));
+    } 
+    
     let name: ts.EntityName;
     if (ts.isIdentifier(type)) {
         name = type;
