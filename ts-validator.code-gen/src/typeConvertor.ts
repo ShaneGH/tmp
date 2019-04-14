@@ -6,7 +6,7 @@ class ResolveTypeState {
     
     results: LazyDictionary<AliasedType>
 
-    constructor(private _fileRelativePath: string, dictionary?: LazyDictionary<AliasedType>) {
+    constructor(private _fileRelativePath: string, public file: ts.SourceFile, dictionary?: LazyDictionary<AliasedType>) {
         this.results = dictionary || new LazyDictionary<AliasedType>();
     }
 
@@ -15,21 +15,21 @@ class ResolveTypeState {
     }
 }
 
-function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, state: ResolveTypeState, file: ts.SourceFile): Property {
+function getPropertyForClassOrInterface(node: ts.TypeElement | ts.ClassElement, state: ResolveTypeState): Property {
     if (!ts.isPropertySignature(node) && !ts.isPropertyDeclaration(node)) {
-        throw new Error(`Member ${node.getText(file)} is not supported.`);
+        throw new Error(`Member ${node.getText(state.file)} is not supported.`);
     }
 
-    return getProperty(node, state, file);
+    return getProperty(node, state);
 }
 
-function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state: ResolveTypeState, file: ts.SourceFile): Property {
+function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state: ResolveTypeState): Property {
     if (!node.type) {
-        throw new Error(`Member ${node.getText(file)} is not supported.`);
+        throw new Error(`Member ${node.getText(state.file)} is not supported.`);
     }
 
     if (!ts.isIdentifier(node.name)) {
-        throw new Error(`Member ${node.getText(file)} is not supported.`);
+        throw new Error(`Member ${node.getText(state.file)} is not supported.`);
     }
 
     if (propertyKeywords[node.type.kind]) {
@@ -42,17 +42,17 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state:
     if (ts.isTypeLiteralNode(node.type)) {
         return new Property(
             node.name.escapedText.toString(),
-            new Properties(getProperties(node.type, state, file)));
+            new Properties(getProperties(node.type, state)));
     }
 
     if (ts.isTypeReferenceNode(node.type)) {
         if (!ts.isIdentifier(node.type.typeName)) {
-            throw new Error(`Member ${node.getText(file)} is not supported.`);
+            throw new Error(`Member ${node.getText(state.file)} is not supported.`);
         }
 
-        const result = resolveType(node.type.typeName, state, file);
+        const result = resolveType(node.type.typeName, state);
         if (!result) {
-            throw new Error(`Cannot find type ${node.type.typeName.getText(file)} for property ${node.name.escapedText.toString()}.`);
+            throw new Error(`Cannot find type ${node.type.typeName.getText(state.file)} for property ${node.name.escapedText.toString()}.`);
         }
 
         return new Property(
@@ -60,38 +60,38 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state:
             result);
     }
     
-    throw new Error(`Member ${node.getText(file)} is not supported.`);
+    throw new Error(`Member ${node.getText(state.file)} is not supported.`);
 }
 
-function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, state: ResolveTypeState, file: ts.SourceFile): Property[] {
+function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, state: ResolveTypeState): Property[] {
 
     if (ts.isInterfaceDeclaration(node)) {
-        return node.members.map(x => getPropertyForClassOrInterface(x, state, file));
+        return node.members.map(x => getPropertyForClassOrInterface(x, state));
     } else if (ts.isClassDeclaration(node)) {
-        return node.members.map(x => getPropertyForClassOrInterface(x, state, file));
+        return node.members.map(x => getPropertyForClassOrInterface(x, state));
     }
 
-    return node.members.map(x => getPropertyForClassOrInterface(x, state, file));
+    return node.members.map(x => getPropertyForClassOrInterface(x, state));
 }
 
-function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile): PropertyType {
-    const t = resolveType(type, state, file);
+function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState): PropertyType {
+    const t = resolveType(type, state);
     if (!t) {
-        throw new Error(`Cannot resolve type for ${type.getText(file)}`);
+        throw new Error(`Cannot resolve type for ${type.getText(state.file)}`);
     }
 
     return t;
 }
 
-function buildExtends (extendsNames: ts.Identifier[], state: ResolveTypeState, file: ts.SourceFile): MultiType {
+function buildExtends (extendsNames: ts.Identifier[], state: ResolveTypeState): MultiType {
     if (!extendsNames.length) throw new Error("You must extend at least one type");
 
     return new MultiType(
-        extendsNames.map(x => resolveTypeWithNullError(x, state, file)),
+        extendsNames.map(x => resolveTypeWithNullError(x, state)),
         MultiTypeCombinator.Intersection);
 }
 
-function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, state: ResolveTypeState, file: ts.SourceFile): LazyTypeReference {
+function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, state: ResolveTypeState): LazyTypeReference {
         
     const id = state.buildKey(node);
     const result = state.results.tryAdd(id, function (): AliasedType {
@@ -106,11 +106,11 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
                 for (var j = 0; j < node.heritageClauses[i].types.length; j++) {
                     const type = node.heritageClauses[i].types[j];
                     if (!ts.isIdentifier(type.expression)) {
-                        throw new Error(`Unsupported extends clause ${type.expression.getText(file)}`);
+                        throw new Error(`Unsupported extends clause ${type.expression.getText(state.file)}`);
                     }
 
                     if (type.typeArguments && type.typeArguments.length) {
-                        throw new Error(`Generics are not supported yet ${type.expression.getText(file)}`);
+                        throw new Error(`Generics are not supported yet ${type.expression.getText(state.file)}`);
                     }
                     
                     extendsInterfaces.push(type.expression);
@@ -118,16 +118,16 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
             }
         }
 
-        const properties = getProperties(node, state, file);
+        const properties = getProperties(node, state);
         if (properties.length && extendsInterfaces.length) {
             return new AliasedType(id, name, 
                 new MultiType([
                     new Properties(properties),
-                    ...buildExtends(extendsInterfaces, state, file).types],
+                    ...buildExtends(extendsInterfaces, state).types],
                     MultiTypeCombinator.Intersection));
 
         } else if (extendsInterfaces.length) {
-            return new AliasedType(id, name, buildExtends(extendsInterfaces, state, file));
+            return new AliasedType(id, name, buildExtends(extendsInterfaces, state));
         } else {
             return new AliasedType(id, name, new Properties(properties));
         }
@@ -136,37 +136,37 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
     return new LazyTypeReference(id, result);
 }
  
-function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile) {
-    const result = resolveType(type, state, file);
+function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState) {
+    const result = resolveType(type, state);
     if (!result) {
-        throw new Error(`Could not resolve type: ${type.getText(file)}`);
+        throw new Error(`Could not resolve type: ${type.getText(state.file)}`);
     }
     
     return result;
 }
 
-function buildMultiType(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile): MultiType | null {
+function buildMultiType(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState): MultiType | null {
     if (!node.types.length) {
         return null;
     }
 
     return new MultiType(
-        node.types.map(x => resolveTypeOrThrow(x, state, file)), 
+        node.types.map(x => resolveTypeOrThrow(x, state)), 
         node.kind === ts.SyntaxKind.UnionType
             ? MultiTypeCombinator.Union
             : MultiTypeCombinator.Intersection);
 }
  
-function buildMultiTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile) {
-    const result = buildMultiType(node, state, file);
+function buildMultiTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState) {
+    const result = buildMultiType(node, state);
     if (!result) {
-        throw new Error(`Could not resolve type: ${node.getText(file)}`);
+        throw new Error(`Could not resolve type: ${node.getText(state.file)}`);
     }
     
     return result;
 }
 
-function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: ResolveTypeState, file: ts.SourceFile) {
+function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: ResolveTypeState) {
 
     const id = state.buildKey(node);
     const type = ts.isParenthesizedTypeNode(node.type)
@@ -179,16 +179,16 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: 
             return new AliasedType(
                 id,
                 name,
-                new Properties(getProperties(type, state, file)));
+                new Properties(getProperties(type, state)));
         } else if (ts.isTypeReferenceNode(type)) {
             return new AliasedType(
                 id,
                 name,
-                resolveTypeOrThrow(type, state, file));
+                resolveTypeOrThrow(type, state));
         } else if (propertyKeywords[type.kind]) {
             return new AliasedType(id, name, propertyKeywords[type.kind]);
         } else if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
-            const result = buildMultiType(type, state, file);
+            const result = buildMultiType(type, state);
             if (!result) {
                 return new AliasedType(id, name, new Properties([]));
             }
@@ -196,10 +196,10 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: 
             return new AliasedType(id, name, result);
         } else if (ts.isArrayTypeNode(type)) {
             return new AliasedType(id, name, 
-                new ArrayType(resolveTypeWithNullError(type.elementType, state, file)));
+                new ArrayType(resolveTypeWithNullError(type.elementType, state)));
         } else {
 
-            throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${node.getText(file)}`);
+            throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${node.getText(state.file)}`);
         }
     });
 
@@ -217,7 +217,7 @@ propertyKeywords[ts.SyntaxKind.NeverKeyword] = PropertyKeyword.never;
 propertyKeywords[ts.SyntaxKind.UnknownKeyword] = PropertyKeyword.unknown;
 propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
 
-function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile) {
+function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState) {
 
     if (ts.isParenthesizedTypeNode(type)) {
         type = type.type;
@@ -228,11 +228,11 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
     }
 
     if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
-        return buildMultiTypeOrThrow(type, state, file);
+        return buildMultiTypeOrThrow(type, state);
     }
 
     if (ts.isTypeLiteralNode(type)) {
-        return new Properties(getProperties(type, state, file));
+        return new Properties(getProperties(type, state));
     }
     
     let name: ts.EntityName;
@@ -241,31 +241,31 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
     } else if  (ts.isTypeReferenceNode(type)) {
         name = type.typeName;
     } else {
-        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(file)}.`);
+        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(state.file)}.`);
     }
     
     const typeName = ts.isIdentifier(name)
         ? [name.escapedText.toString()]
-        : name.getText(file).split(".");
+        : name.getText(state.file).split(".");
 
     if (typeName.length == 1) {
         return visitNodesInScope(type, x => {
             if (ts.isInterfaceDeclaration(x) || ts.isClassDeclaration(x)) {
                 if (x.name && x.name.escapedText.toString() === typeName[0]) {
-                    return buildClasssOrInterfaceType(typeName[0], x, state, file);
+                    return buildClasssOrInterfaceType(typeName[0], x, state);
                 }
             } else if (ts.isTypeAliasDeclaration(x) && x.name.escapedText.toString() === typeName[0]) {
-                return buildTypeAliasType(typeName[0], x, state, file);
+                return buildTypeAliasType(typeName[0], x, state);
             }
         }) || null;
     } else {
         // https://github.com/ShaneGH/ts-validator/issues/16
-        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(file)}.`);
+        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(state.file)}.`);
     }
 }
 
 function publicResolveType(type: ts.TypeNode, file: ts.SourceFile, fileRelativePath: string, state?: LazyDictionary<AliasedType>): Type | null {
-    const result = resolveType(type, new ResolveTypeState(fileRelativePath, state), file);
+    const result = resolveType(type, new ResolveTypeState(fileRelativePath, file, state));
     if (!result) return null;
 
     return result instanceof LazyTypeReference ? result.getType() : result;
