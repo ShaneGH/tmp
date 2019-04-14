@@ -4,10 +4,3 @@ testBin/
 
 .vscode/
 node_modules/
-dummy/
-
-# This setting doesn't actually work, but it is a pointer to 
-# the following code which does/undoes this functionality
-# git update-index --assume-unchanged types.ts
-# git update-index --no-assume-unchanged types.ts
-# ./types.ts
