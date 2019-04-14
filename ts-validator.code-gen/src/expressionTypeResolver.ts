@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { visitNodesInScope } from './utils/astUtils';
-import { PropertyKeyword } from 'ts-validator.core';
+import { PropertyKeyword, Properties } from 'ts-validator.core';
 
 
 function pad(text: string, pad: number) {
@@ -47,11 +47,13 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
     });
 }
 
+type ObjectCreationProperty<T> = { name: string, value: T | PropertyKeyword | ObjectCreation<T> }; 
+class ObjectCreation<T> {
+    constructor(public values: ObjectCreationProperty<T>[]) { }
+}
+
 function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
-    return function (resolve: (type: ts.TypeNode) => T | null): T | PropertyKeyword {
-        if (propertyKeywords[expr.kind]) {
-            return propertyKeywords[expr.kind];
-        }
+    return function (resolve: (type: ts.TypeNode) => T | null): T | PropertyKeyword | ObjectCreation<T> {
 
         if (ts.isIdentifier(expr)) {
             // undefined is handled a little differently
@@ -71,15 +73,54 @@ function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
                 }
 
                 return t;
+            } else if (varDec.initializer) {
+                return resolveTypeForExpression<T>(varDec.initializer, file)(resolve);
             }
-
-            throw new Error("TODO: https://github.com/ShaneGH/ts-validator/issues/7");
         }
 
-        throw new Error(`Cannot resolve type for object: ${expr.getFullText(file)}`);
+        if (ts.isAsExpression(expr) || ts.isTypeAssertion(expr)) {
+            const t = resolve(expr.type);
+            if (!t) {
+                throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
+            }
+
+            return t;
+        }
+
+        if (propertyKeywords[expr.kind]) {
+            return propertyKeywords[expr.kind];
+        }
+
+        if (ts.isObjectLiteralExpression(expr)) {
+            return new ObjectCreation<T>(expr.properties.map(p => {
+                if (ts.isPropertyAssignment(p)) {
+                    //Identifier | StringLiteral | NumericLiteral | ComputedPropertyName
+                    const name = ts.isIdentifier(p.name)
+                        ? p.name.text
+                        : ts.isStringLiteral(p.name)
+                            ? p.name.text
+                            : ts.isNumericLiteral(p.name)
+                                ? p.name.text
+                                : null;
+
+                    if (name === null) throw new Error(`Cannot resolve name for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
+
+                    return {
+                        name,
+                        value: resolveTypeForExpression<T>(p.initializer, file)(resolve)
+                    };
+                }
+
+                throw new Error(`Cannot resolve type for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
+            }));
+        }
+
+        throw new Error(`Cannot resolve type for object, ${ts.SyntaxKind[expr.kind]}: ${expr.getFullText(file)}`);
     }
 }
 
 export {
+    ObjectCreation,
+    ObjectCreationProperty,
     resolveTypeForExpression
 }

@@ -104,7 +104,7 @@ function serialize(value: AliasedType[]) {
             id: value.id,
             name: value.name,
             aliased: serializeSingle(value.aliases)
-        })).value();    // evaluate to serialize any nested types
+        }))();    // evaluate to serialize any nested types
     }
         
     return result.toDictionary();

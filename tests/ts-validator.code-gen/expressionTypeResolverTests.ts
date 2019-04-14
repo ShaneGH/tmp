@@ -2,7 +2,7 @@ import * as chai from 'chai';
 import * as ts from 'typescript';
 import { transform } from '../../ts-validator.code-gen/src/fileTransformer';
 import { PropertyKeyword } from 'ts-validator.core';
-import { resolveTypeForExpression } from '../../ts-validator.code-gen/src/expressionTypeResolver';
+import { resolveTypeForExpression, ObjectCreation } from '../../ts-validator.code-gen/src/expressionTypeResolver';
 
 chai.should();
 
@@ -28,62 +28,116 @@ describe("resolver", function () {
             arg: transform(file, "tyLoc", "testFile.ts").typeKeys[0].value
         };
     }
-    
-    const printer: ts.Printer = ts.createPrinter();
-    describe("resolveTypeForExpression", function () {
-
-        function execute(typeValue: string, keyword: PropertyKeyword) {
-            const ref = getTypeReference(typeValue);
-            const result = resolveTypeForExpression<ts.TypeNode>(ref.arg, ref.file)(x => x);
-
-            result.should.equal(keyword);
-        }
-            
-        it("should find string literal type", () => {
-            execute("'hello'", PropertyKeyword.string);
-        });
-            
-        it("should find number literal type", () => {
-            execute("4", PropertyKeyword.number);
-        });
-            
-        it("should find true literal type", () => {
-            execute("true", PropertyKeyword.boolean);
-        });
-            
-        it("should find true literal type", () => {
-            execute("false", PropertyKeyword.boolean);
-        });
-            
-        it("should find null literal type", () => {
-            execute("null", PropertyKeyword.null);
-        });
-            
-        it("should find undefined literal type", () => {
-            execute("undefined", PropertyKeyword.undefined);
-        });
-    });
 
     describe("compile variable type tests", function () {
             
-        it("should compile type when type is built in", () => {
-            const file = createFile(`import { validate } from 'ts-validator.validator';
-let x: string = "hi";
+        function execute (type: string, value: string, 
+            explicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node>) => void, 
+            implicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node>) => void, 
+            direct?: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node>) => void) {
+            it("explicit", () => {
+                const file = createFile(`import { validate } from 'ts-validator.validator';
+let x: ${type} = ${value};
 validate(x);`);
-            const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+                const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+                const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+                explicit(result);
+            });
+            
+            it("implicit", () => {
+                const file = createFile(`import { validate } from 'ts-validator.validator';
+let x = ${value};
+validate(x);`);
+                const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+                const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+                implicit(result);
+            });
+            
+            it("direct", () => {
+                const ref = getTypeReference(value);
+                const result = resolveTypeForExpression<ts.TypeNode>(ref.arg, ref.file)(x => x);
+                (direct || implicit)(result);
+            });
+        }
 
-            (result as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword);
+        describe("for a string", () => {
+            execute("string", "'hi'",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
+                x => x.should.be.eq(PropertyKeyword.string));
         });
+        
+        describe("for a number", () => {
+            execute("number", "7",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => x.should.be.eq(PropertyKeyword.number));
+        });
+        
+        describe("for true", () => {
+            execute("boolean", "true",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.BooleanKeyword),
+                x => x.should.be.eq(PropertyKeyword.boolean));
+        });
+        
+        describe("for false", () => {
+            execute("boolean", "false",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.BooleanKeyword),
+                x => x.should.be.eq(PropertyKeyword.boolean));
+        });
+        
+        describe("for null", () => {
+            execute("null", "null",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NullKeyword),
+                x => x.should.be.eq(PropertyKeyword.null));
+        });
+        
+        describe("for undefined", () => {
+            execute("undefined", "undefined",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.UndefinedKeyword),
+                x => x.should.be.eq(PropertyKeyword.undefined));
+        });
+        
+        describe("for literal as", () =>
+            execute("string", "null as string",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword)));
+        
+        describe("for literal cast", () =>
+            execute("string", "<string>null",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword)));
+        
+        describe("for empty object", () =>
+            execute("object", "{}",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectKeyword),
+                x => {
+                    x.should.be.instanceOf(ObjectCreation);
+                    (x as ObjectCreation<ts.Node>).values.length.should.eq(0);
+                }));
+                
+        describe("for complex object", () =>
+            execute("object", '{x: 5, "y": {4: true}}',
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectKeyword),
+                x => {
+                    let outer = x as ObjectCreation<ts.Node>;
+                    outer.should.be.instanceOf(ObjectCreation);
+
+                    outer.values.length.should.eq(2);
+                    outer.values[0].name.should.eq("x", "name");
+                    outer.values[0].value.should.eq(PropertyKeyword.number);
+                    
+                    outer.values[1].name.should.eq("y", "name");
+                    let inner = outer.values[1].value as ObjectCreation<ts.Node>;
+                    inner.should.be.instanceOf(ObjectCreation);
+                    
+                    inner.values.length.should.eq(1);
+                    inner.values[0].name.should.eq("4", "name");
+                    inner.values[0].value.should.eq(PropertyKeyword.boolean);
+                }));
 
     /* // https://github.com/ShaneGH/ts-validator/issues/7
-validate(someValue)
-validate({})
-validate({} as string)
 validate([])
 validate(new Date())
 validate(/sdsd/)
-validate(<string>{}) cast
 validate(<SomeTsxTag></SomeTsxTag>)
 
      */

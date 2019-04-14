@@ -51,8 +51,6 @@ describe("nodeParser", function () {
             print(file);
             throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
         }
-        
-// TODO: 2, parenthesis in union/intersection
 
         if (!testSerializer) return type;
 
@@ -348,9 +346,31 @@ describe("nodeParser", function () {
         });
     });
     
+    describe("intersection and union types with parentiesis", () => {
+
+        const type = resolveType(`type T1 = (string & number) | boolean`, "T1") as types.AliasedType;
+        const stringNumberType = (type.aliases as types.BinaryType).left as types.BinaryType;
+        const booleanType = (type.aliases as types.BinaryType).right;
+
+        it("should construct type properly", () => {
+            type.name.should.be.eq("T1");
+            type.aliases.should.be.instanceof(types.BinaryType);
+            stringNumberType.should.be.instanceof(types.BinaryType);
+
+            (type.aliases as types.BinaryType).combinator.should.be.eq(types.BinaryTypeCombinator.Union);
+            stringNumberType.combinator.should.be.eq(types.BinaryTypeCombinator.Intersection);
+        });
+
+        it("should use correct types", () => {
+            booleanType.should.eq(types.PropertyKeyword.boolean);
+            stringNumberType.left.should.eq(types.PropertyKeyword.string);
+            stringNumberType.right.should.eq(types.PropertyKeyword.number);
+        });
+    });
+    
     describe("binary type with properties", () => {
 
-        const type = resolveType(`type T1 = {val: string} & number`, "T1") as types.AliasedType;
+        const type = resolveType(`type T1 = ({val: string} & number)`, "T1") as types.AliasedType;
         const propertiesType = (type.aliases as types.BinaryType).left as types.Properties;
         const numberType = (type.aliases as types.BinaryType).right as types.PropertyKeyword;
 
@@ -368,4 +388,25 @@ describe("nodeParser", function () {
             propertiesType.properties[0].type.should.eq(types.PropertyKeyword.string);
         });
     });
+    
+    // describe("array types", () => {
+
+    //     const type = resolveType(`type T1 = string[]`, "T1") as types.AliasedType;
+    //     const propertiesType = (type.aliases as types.BinaryType).left as types.Properties;
+    //     const numberType = (type.aliases as types.BinaryType).right as types.PropertyKeyword;
+
+    //     it("should construct type properly", () => {
+    //         type.name.should.be.eq("T1");
+    //         type.aliases.should.be.instanceof(types.BinaryType);
+    //         propertiesType.should.be.instanceof(types.Properties);
+    //         numberType.should.be.instanceof(types.PropertyKeyword);
+    //     });
+
+    //     it("should use correct types", () => {
+    //         numberType.should.eq(types.PropertyKeyword.number);
+    //         propertiesType.properties.length.should.eq(1);
+    //         propertiesType.properties[0].name.should.eq("val");
+    //         propertiesType.properties[0].type.should.eq(types.PropertyKeyword.string);
+    //     });
+    // });
 });

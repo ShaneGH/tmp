@@ -138,7 +138,7 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
         }
     });
 
-    return new LazyTypeReference(result.key, result.value);
+    return new LazyTypeReference(id, result);
 }
  
 function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile) {
@@ -180,35 +180,40 @@ function buildBinaryTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: Res
 function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: ResolveTypeState, file: ts.SourceFile) {
 
     const id = state.buildKey(node);
+    const type = ts.isParenthesizedTypeNode(node.type)
+        ? node.type.type
+        : node.type;
+
     const result = state.results.tryAdd(id, function () {
 
-        if (ts.isTypeLiteralNode(node.type)) {
+        if (ts.isTypeLiteralNode(type)) {
             return new AliasedType(
                 id,
                 name,
-                new Properties(getProperties(node.type, state, file)));
-        } else if (ts.isTypeReferenceNode(node.type)) {
+                new Properties(getProperties(type, state, file)));
+        } else if (ts.isTypeReferenceNode(type)) {
             return new AliasedType(
                 id,
                 name,
-                resolveTypeOrThrow(node.type, state, file));
-        } else if (propertyKeywords[node.type.kind]) {
-            return new AliasedType(id, name, propertyKeywords[node.type.kind]);
-        } else if (ts.isUnionTypeNode(node.type) || ts.isIntersectionTypeNode(node.type)) {
-            const result = buildBinaryType(node.type, state, file);
+                resolveTypeOrThrow(type, state, file));
+        } else if (propertyKeywords[type.kind]) {
+            return new AliasedType(id, name, propertyKeywords[type.kind]);
+        } else if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
+            const result = buildBinaryType(type, state, file);
             if (!result) {
                 return new AliasedType(id, name, new Properties([]));
             }
 
             return new AliasedType(id, name, result);
+        } else if (ts.isArrayTypeNode(type)) {
+            throw new Error("###################");
         } else {
 
-            //throw new Error(`DEBUG 1: ${ts.SyntaxKind[node.type.kind]} ${node.getText(file)}`);
-            throw new Error(`Unsupported type: ${node.getText(file)}`);
+            throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${node.getText(file)}`);
         }
     });
 
-    return new LazyTypeReference(result.key, result.value);
+    return new LazyTypeReference(id, result);
 }
 
 const propertyKeywords: {[key: number]: PropertyKeyword} = {};
@@ -223,6 +228,11 @@ propertyKeywords[ts.SyntaxKind.UnknownKeyword] = PropertyKeyword.unknown;
 propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
 
 function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState, file: ts.SourceFile) {
+
+    if (ts.isParenthesizedTypeNode(type)) {
+        type = type.type;
+    }
+
     if (propertyKeywords[type.kind]) {
         return propertyKeywords[type.kind];
     }
@@ -233,7 +243,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
 
     if (ts.isTypeLiteralNode(type)) {
         return new Properties(getProperties(type, state, file));
-    } 
+    }
     
     let name: ts.EntityName;
     if (ts.isIdentifier(type)) {
@@ -241,8 +251,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
     } else if  (ts.isTypeReferenceNode(type)) {
         name = type.typeName;
     } else {
-        // throw new Error(`DEBUG 2: ${ts.SyntaxKind[type.kind]} ${type.getText(file)}`);
-        throw new Error(`Unsupported type: ${type.getText(file)}.`);
+        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(file)}.`);
     }
     
     const typeName = ts.isIdentifier(name)
@@ -261,8 +270,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
         }) || null;
     } else {
         // https://github.com/ShaneGH/ts-validator/issues/16
-        // throw new Error(`DEBUG 3: ${ts.SyntaxKind[type.kind]} ${type.getText(file)}`);
-        throw new Error(`Unsupported type: ${type.getText(file)}.`);
+        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(file)}.`);
     }
 }
 

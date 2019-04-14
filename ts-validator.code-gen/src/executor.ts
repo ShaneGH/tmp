@@ -1,12 +1,10 @@
-//import { generateValidateFile } from './clientSideValidator'
 import { transform } from './fileTransformer'
 import * as ts from 'typescript'
 import * as _ from 'lodash';
 import { validatorModuleName } from './const';
-import { LazyDictionary } from 'ts-validator.core';
-import { AliasedType, Type } from 'ts-validator.core';
+import { AliasedType, LazyDictionary, Type, Properties, Property, LazyTypeReference } from 'ts-validator.core';
 import { convertType } from './typeConvertor';
-import { resolveTypeForExpression } from './expressionTypeResolver';
+import { resolveTypeForExpression, ObjectCreation, ObjectCreationProperty } from './expressionTypeResolver';
 import { generateValidateFile } from './clientSideValidator';
 
 const tsValidatorFile = validatorModuleName + "-types.ts";
@@ -19,6 +17,23 @@ type ExecuteDependencies = {
     joinPath: (...parts: string[]) => string
     convertToRelativePath: (pathFrom: string, pathTo: string) => string
     convertRelativePathToUnix: (path: string) => string
+}
+
+function rewrapObjectCreationProperty(property: ObjectCreationProperty<Type>): Property {
+    const value = rewrapObjectCreation(property.value);
+    return new Property(
+        property.name,
+        value instanceof AliasedType 
+            ? new LazyTypeReference(value.id, () => value) 
+            : value);
+}
+
+function rewrapObjectCreation(values: Type | ObjectCreation<Type>): Type {
+    if (!(values instanceof ObjectCreation)) {
+        return values;
+    }
+
+    return new Properties(values.values.map(rewrapObjectCreationProperty));
 }
 
 const execute = (fileName: string) => async (dependencies: ExecuteDependencies) => {
@@ -51,7 +66,8 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
     const state = new LazyDictionary<AliasedType>();
     const typeMap = transformed.typeKeys.map(tk => ({
         key: tk.key,
-        value: resolveTypeForExpression<Type>(tk.value, transformed.file)(x => convertType(x, transformed.file, fileRelativePath, state))
+        value: rewrapObjectCreation(
+            resolveTypeForExpression<Type>(tk.value, transformed.file)(x => convertType(x, transformed.file, fileRelativePath, state)))
     }));
 
     const validateFile = generateValidateFile(typeMap, {strictNullChecks: true});

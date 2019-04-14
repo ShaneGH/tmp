@@ -54,6 +54,10 @@ export class BinaryType {
     }
 }
 
-export type CommonType = BinaryType | PropertyKeyword | Properties;
+export class ArrayType {
+    constructor(public type: Type) { }
+}
+
+export type CommonType = BinaryType | PropertyKeyword | Properties;// | ArrayType;
 export type PropertyType = LazyTypeReference | CommonType;
 export type Type = CommonType | AliasedType;

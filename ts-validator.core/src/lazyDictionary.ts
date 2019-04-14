@@ -6,20 +6,14 @@ export class LazyDictionary<TValue> {
     /** Add an item to the dictionary if another item does not exist. Returns the added or existing item. Caches items after first evaluation */
     tryAdd(key: string, value: () => TValue) {
         if (this.values[key]) {
-            return {
-                key,
-                value: this.values[key]
-            };
+            return this.values[key];
         }
 
         let val: TValue = noValue as any;
-        return {
-            key,
-            value: this.values[key] = function () {
-                return val === noValue 
-                    ? (val = value())
-                    : val;
-            }
+        return this.values[key] = function () {
+            return val === noValue 
+                ? (val = value())
+                : val;
         };
     }
 

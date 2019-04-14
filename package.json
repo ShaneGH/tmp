@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "build-core": "node \"./node_modules/typescript/lib/tsc.js\" -p ./ts-validator.core",
+    "build-executor": "node \"./node_modules/typescript/lib/tsc.js\" -p ./ts-validator.executor",
+    "build-validator": "node \"./node_modules/typescript/lib/tsc.js\" -p ./ts-validator.validator",
+    "build-code-gen": "node \"./node_modules/typescript/lib/tsc.js\" -p ./ts-validator.code-gen",
     "build": "node \"./node_modules/typescript/lib/tsc.js\"",
+    "rebuild": "npm run build-core & npm run build-validator & npm run build-code-gen & npm run build-executor & npm run build",
     "test": "mocha \"./testBin/tests/**/*.js\"",
     "build-and-test": "npm run build && npm run test",
     "dummy": "node \"./node_modules/typescript/lib/tsc.js\" \"./build.ts\" --outDir \"./dummy\" --strict"
