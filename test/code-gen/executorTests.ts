@@ -55,13 +55,11 @@ describe("Client side validator smoke tests", () =>
                 throw new Error(`Unknown file read: ${x}`);
             },
             writeFile: (fileName: string, fileContent: string) => {
-                // https://github.com/ShaneGH/ts-validator/issues/26
                 if (fileName === sourceFileName || fileName.replace(/[\\\/]/g, "\\") === sourceFileName) {
                     sourceFile = fileContent;
                     return Promise.resolve();
                 }
 
-                // Error: Unknown file write: C:\proj\ts-validator-types.ts
                 if (fileName === typesFileLocation) {
                     typesFile = fileContent;
                     return Promise.resolve();

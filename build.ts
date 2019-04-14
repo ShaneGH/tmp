@@ -62,9 +62,13 @@ async function findClosestProjectDirectory(fileName: string) {
     return tryAgain;
 }
 
+function ensureCorrectSeparators(uri: string) {
+    return uri.replace(/[\\\/]/g, sep);
+}
+
 const dependencies = {
-    readFile: async (fileName: string) => (await readFileAsync(fileName, null as any)).toString(),
-    writeFile: (fileName: string, fileContent: string) => writeFileAsync(fileName, fileContent, null as any),
+    readFile: async (fileName: string) => (await readFileAsync(ensureCorrectSeparators(fileName), null as any)).toString(),
+    writeFile: (fileName: string, fileContent: string) => writeFileAsync(ensureCorrectSeparators(fileName), fileContent, null as any),
     joinPath: (...parts: string[]) => joinPath.apply(null, parts) as string,
     findClosestProjectDirectory,
     convertToRelativePath,
