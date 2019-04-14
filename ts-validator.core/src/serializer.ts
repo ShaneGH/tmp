@@ -1,4 +1,4 @@
-import { PropertyKeyword, Property, Properties, LazyTypeReference, BinaryType, BinaryTypeCombinator, AliasedType } from "./types";
+import { PropertyKeyword, Property, Properties, LazyTypeReference, MultiType, MultiTypeCombinator, AliasedType } from "./types";
 import { LazyDictionary } from "./lazyDictionary";
 
 let kindBuilder = 0;
@@ -44,11 +44,10 @@ type PropertiesS = {
 
 const propertyKeywordS = buildWrapperType<string>();
 
-const binaryTypeS = buildWrapperType<BinaryTypeS>();
-type BinaryTypeS = {
-    left: WrapperKind<any>,
-    right: WrapperKind<any>,
-    combinator: BinaryTypeCombinator
+const MultiTypeS = buildWrapperType<MultiTypeS>();
+type MultiTypeS = {
+    types: WrapperKind<any>[],
+    combinator: MultiTypeCombinator
 }
 
 const lazyTypeReferenceS = buildWrapperType<string>();
@@ -79,11 +78,10 @@ function serialize(value: AliasedType[]) {
             return propertyKeywordS.build(value.keyword);
         }
         
-        if (value instanceof BinaryType) {
-            return binaryTypeS.build({
+        if (value instanceof MultiType) {
+            return MultiTypeS.build({
                 combinator: value.combinator,
-                left: serializeSingle(value.left),
-                right: serializeSingle(value.right)
+                types: value.types.map(serializeSingle)
             });
         }
         
@@ -138,10 +136,11 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
             return val;
         }
         
-        if (binaryTypeS.is(value)) {
-            return new BinaryType(
-                deserializeSingle(value.value.left),
-                deserializeSingle(value.value.right),
+        if (MultiTypeS.is(value)) {
+            return new MultiType(
+                value.value.types.map(deserializeSingle),
+                // deserializeSingle(value.value.left),
+                // deserializeSingle(value.value.right),
                 value.value.combinator);
         }
         

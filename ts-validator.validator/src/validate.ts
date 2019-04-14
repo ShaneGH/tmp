@@ -1,4 +1,4 @@
-import { PropertyKeyword, PropertyType, BinaryType, BinaryTypeCombinator, LazyTypeReference, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
+import { PropertyKeyword, PropertyType, MultiType, MultiTypeCombinator, LazyTypeReference, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
 
 function validateKeyword(value: any, keyword: PropertyKeyword, compilerArgs: CompilerArgs) {
     if (value == null && !compilerArgs.strictNullChecks) {
@@ -8,15 +8,25 @@ function validateKeyword(value: any, keyword: PropertyKeyword, compilerArgs: Com
     return keyword.validate(value);
 }
 
-function validateBinaryType(value: any, propertyType: BinaryType, compilerArgs: CompilerArgs): boolean {
+function validateMultiType(value: any, propertyType: MultiType, compilerArgs: CompilerArgs): boolean {
     switch (propertyType.combinator) {
-        case BinaryTypeCombinator.Intersection:
-            return validateProperty(value, propertyType.left, compilerArgs) &&
-                validateProperty(value, propertyType.right, compilerArgs);
+        case MultiTypeCombinator.Intersection:
+            for (var i = 0; i < propertyType.types.length; i++) {
+                if (!validateProperty(value, propertyType.types[i], compilerArgs)) {
+                    return false;
+                }
+            }
             
-        case BinaryTypeCombinator.Union:
-            return validateProperty(value, propertyType.left, compilerArgs) ||
-                validateProperty(value, propertyType.right, compilerArgs);
+            return true;
+            
+        case MultiTypeCombinator.Union:
+            for (var i = 0; i < propertyType.types.length; i++) {
+                if (validateProperty(value, propertyType.types[i], compilerArgs)) {
+                    return true;
+                }
+            }
+            
+            return false;
 
         default:
             throw new Error(`Invalid complex type combinator: ${propertyType.combinator}`);
@@ -51,7 +61,7 @@ function validateProperty(propertyValue: any, propertyType: PropertyType, compil
         return true;
     }
     
-    return validateBinaryType(propertyValue, propertyType, compilerArgs);
+    return validateMultiType(propertyValue, propertyType, compilerArgs);
 }
 
 function validate(subject: any, type: PropertyType | AliasedType, compilerArgs: CompilerArgs) {

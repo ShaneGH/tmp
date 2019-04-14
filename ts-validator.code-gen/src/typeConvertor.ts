@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import { visitNodesInScope } from './utils/astUtils';
-import { LazyDictionary, AliasedType, Property, Properties, BinaryType, BinaryTypeCombinator, PropertyType, LazyTypeReference, PropertyKeyword, Type } from 'ts-validator.core';
+import { LazyDictionary, AliasedType, Property, Properties, MultiType, MultiTypeCombinator, PropertyType, LazyTypeReference, PropertyKeyword, Type } from 'ts-validator.core';
 
 class ResolveTypeState {
     
@@ -83,17 +83,12 @@ function resolveTypeWithNullError(type: ts.TypeNode | ts.Identifier, state: Reso
     return t;
 }
 
-function buildExtends (extendsNames: ts.Identifier[], state: ResolveTypeState, file: ts.SourceFile): PropertyType {
+function buildExtends (extendsNames: ts.Identifier[], state: ResolveTypeState, file: ts.SourceFile): MultiType {
     if (!extendsNames.length) throw new Error("You must extend at least one type");
 
-    const first = resolveTypeWithNullError(extendsNames[0], state, file);
-
-    return extendsNames
-        .slice(1)
-        .reduce((s, x) => new BinaryType(
-            s,
-            resolveTypeWithNullError(x, state, file),
-            BinaryTypeCombinator.Intersection), first);
+    return new MultiType(
+        extendsNames.map(x => resolveTypeWithNullError(x, state, file)),
+        MultiTypeCombinator.Intersection);
 }
 
 function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, state: ResolveTypeState, file: ts.SourceFile): LazyTypeReference {
@@ -126,10 +121,10 @@ function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration 
         const properties = getProperties(node, state, file);
         if (properties.length && extendsInterfaces.length) {
             return new AliasedType(id, name, 
-                new BinaryType(
+                new MultiType([
                     new Properties(properties),
-                    buildExtends(extendsInterfaces, state, file),
-                    BinaryTypeCombinator.Intersection));
+                    ...buildExtends(extendsInterfaces, state, file).types],
+                    MultiTypeCombinator.Intersection));
 
         } else if (extendsInterfaces.length) {
             return new AliasedType(id, name, buildExtends(extendsInterfaces, state, file));
@@ -150,26 +145,20 @@ function resolveTypeOrThrow(type: ts.TypeNode | ts.Identifier, state: ResolveTyp
     return result;
 }
 
-function buildBinaryType(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile): PropertyType | null {
+function buildMultiType(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile): MultiType | null {
     if (!node.types.length) {
         return null;
     }
 
-    const combinator = node.kind === ts.SyntaxKind.UnionType
-        ? BinaryTypeCombinator.Union
-        : BinaryTypeCombinator.Intersection;
-
-    const types = node.types.map(x => resolveTypeOrThrow(x, state, file));
-
-    return types
-        .slice(1)
-        .reduce((s, x) => 
-            new BinaryType(s, x, combinator), 
-            types[0]);
+    return new MultiType(
+        node.types.map(x => resolveTypeOrThrow(x, state, file)), 
+        node.kind === ts.SyntaxKind.UnionType
+            ? MultiTypeCombinator.Union
+            : MultiTypeCombinator.Intersection);
 }
  
-function buildBinaryTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile): PropertyType {
-    const result = buildBinaryType(node, state, file);
+function buildMultiTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: ResolveTypeState, file: ts.SourceFile) {
+    const result = buildMultiType(node, state, file);
     if (!result) {
         throw new Error(`Could not resolve type: ${node.getText(file)}`);
     }
@@ -199,7 +188,7 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: 
         } else if (propertyKeywords[type.kind]) {
             return new AliasedType(id, name, propertyKeywords[type.kind]);
         } else if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
-            const result = buildBinaryType(type, state, file);
+            const result = buildMultiType(type, state, file);
             if (!result) {
                 return new AliasedType(id, name, new Properties([]));
             }
@@ -238,7 +227,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState,
     }
 
     if (ts.isUnionTypeNode(type) || ts.isIntersectionTypeNode(type)) {
-        return buildBinaryTypeOrThrow(type, state, file);
+        return buildMultiTypeOrThrow(type, state, file);
     }
 
     if (ts.isTypeLiteralNode(type)) {

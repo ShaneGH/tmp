@@ -23,7 +23,7 @@ export class PropertyKeyword {
     }
 }
 
-export enum BinaryTypeCombinator {
+export enum MultiTypeCombinator {
     Intersection = 1,
     Union
 } 
@@ -37,7 +37,7 @@ export class Properties {
 }
 
 export class AliasedType {
-    constructor (public id: string, public name: string, public aliases: BinaryType | PropertyKeyword | LazyTypeReference | Properties) {
+    constructor (public id: string, public name: string, public aliases: MultiType | PropertyKeyword | LazyTypeReference | Properties) {
     }
 }
 
@@ -49,8 +49,8 @@ export class LazyTypeReference {
     }
 }
 
-export class BinaryType {
-    constructor(public left: PropertyType, public right: PropertyType, public combinator: BinaryTypeCombinator) {
+export class MultiType {
+    constructor(public types: PropertyType[], public combinator: MultiTypeCombinator) {
     }
 }
 
@@ -58,6 +58,6 @@ export class ArrayType {
     constructor(public type: Type) { }
 }
 
-export type CommonType = BinaryType | PropertyKeyword | Properties;// | ArrayType;
+export type CommonType = MultiType | PropertyKeyword | Properties;// | ArrayType;
 export type PropertyType = LazyTypeReference | CommonType;
 export type Type = CommonType | AliasedType;

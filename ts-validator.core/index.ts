@@ -1,5 +1,5 @@
 import { LazyDictionary } from "./src/lazyDictionary";
-import { AliasedType, BinaryType, BinaryTypeCombinator, LazyTypeReference, Properties, Property, PropertyKeyword, PropertyType, Type } from "./src/types";
+import { AliasedType, MultiType, MultiTypeCombinator, LazyTypeReference, Properties, Property, PropertyKeyword, PropertyType, Type } from "./src/types";
 import { deserialize, serialize, WrapperKind } from "./src/serializer";
 import { CompilerArgs } from "./src/compilerArgs";
 
@@ -13,8 +13,8 @@ export {
 
 export {
     AliasedType,
-    BinaryType,
-    BinaryTypeCombinator,
+    MultiType,
+    MultiTypeCombinator,
     LazyTypeReference,
     Properties,
     Property,

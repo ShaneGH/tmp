@@ -218,15 +218,15 @@ describe("nodeParser", function () {
                 `${classOrInterface} My1 { prop1: string }\n${classOrInterface} My2 extends My1 { prop2: number }`, "My2"
                 ) as types.AliasedType;
 
-            const properties = (type.aliases as types.BinaryType).left as types.Properties;
-            const extended = (type.aliases as types.BinaryType).right as types.LazyTypeReference;
-            const combinator = (type.aliases as types.BinaryType).combinator;
+            const properties = (type.aliases as types.MultiType).types[0] as types.Properties;
+            const extended = (type.aliases as types.MultiType).types[1] as types.LazyTypeReference;
+            const combinator = (type.aliases as types.MultiType).combinator;
 
             it("should parse type as intersection type", () => {
                 type.name.should.equal("My2");
 
                 properties.should.be.instanceof(types.Properties);
-                combinator.should.be.eq(types.BinaryTypeCombinator.Intersection);
+                combinator.should.be.eq(types.MultiTypeCombinator.Intersection);
                 extended.should.be.instanceof(types.LazyTypeReference);
             });
 
@@ -265,45 +265,41 @@ describe("nodeParser", function () {
         });
     });
 
-    function binaryTypes(combinator: types.BinaryTypeCombinator) {
-        const name = combinator === types.BinaryTypeCombinator.Union ? "union" : "intersection";
-        const t = combinator === types.BinaryTypeCombinator.Union ? "|" : "&";
+    function MultiTypes(combinator: types.MultiTypeCombinator) {
+        const name = combinator === types.MultiTypeCombinator.Union ? "union" : "intersection";
+        const t = combinator === types.MultiTypeCombinator.Union ? "|" : "&";
 
         describe(name + " types", () => {
             describe("horizontal", () => {
 
                 const type = resolveType(`type T1 = string ${t} number ${t} boolean`, "T1") as types.AliasedType;
-                const stringNumberType = (type.aliases as types.BinaryType).left as types.BinaryType;
-                const booleanType = (type.aliases as types.BinaryType).right;
+                const stringType = (type.aliases as types.MultiType).types[0];
+                const numberType = (type.aliases as types.MultiType).types[1];
+                const booleanType = (type.aliases as types.MultiType).types[2];
 
                 it("should construct type properly", () => {
                     type.name.should.be.eq("T1");
-                    type.aliases.should.be.instanceof(types.BinaryType);
-                    stringNumberType.should.be.instanceof(types.BinaryType);
-
-                    (type.aliases as types.BinaryType).combinator.should.be.eq(combinator);
-                    stringNumberType.combinator.should.be.eq(combinator);
-                });
-
-                it("should use correct types", () => {
+                    type.aliases.should.be.instanceof(types.MultiType);
+                    (type.aliases as types.MultiType).combinator.should.be.eq(combinator);
+                    
+                    stringType.should.eq(types.PropertyKeyword.string);
+                    numberType.should.eq(types.PropertyKeyword.number);
                     booleanType.should.eq(types.PropertyKeyword.boolean);
-                    stringNumberType.left.should.eq(types.PropertyKeyword.string);
-                    stringNumberType.right.should.eq(types.PropertyKeyword.number);
                 });
             });
             
             describe("nested", () => {
 
                 const type = resolveType(`type T1 = string; type T2 = {val: string}; type T3 = T1 ${t} T2`, "T3") as types.AliasedType;
-                const left = (type.aliases as types.BinaryType).left as types.LazyTypeReference;
-                const right = (type.aliases as types.BinaryType).right as types.LazyTypeReference;
+                const left = (type.aliases as types.MultiType).types[0] as types.LazyTypeReference;
+                const right = (type.aliases as types.MultiType).types[1] as types.LazyTypeReference;
 
                 it("should construct type properly", () => {
                     type.name.should.be.eq("T3");
                     left.should.be.instanceof(types.LazyTypeReference);
                     right.should.be.instanceof(types.LazyTypeReference);
 
-                    (type.aliases as types.BinaryType).combinator.should.eq(combinator);
+                    (type.aliases as types.MultiType).combinator.should.eq(combinator);
                 });
 
                 it("should construct left correctly", () => {
@@ -321,62 +317,62 @@ describe("nodeParser", function () {
         });
     }
 
-    binaryTypes(types.BinaryTypeCombinator.Union);
-    binaryTypes(types.BinaryTypeCombinator.Intersection);
+    MultiTypes(types.MultiTypeCombinator.Union);
+    MultiTypes(types.MultiTypeCombinator.Intersection);
     
     describe("intersection and union types combined", () => {
 
         const type = resolveType(`type T1 = string & number | boolean`, "T1") as types.AliasedType;
-        const stringNumberType = (type.aliases as types.BinaryType).left as types.BinaryType;
-        const booleanType = (type.aliases as types.BinaryType).right;
+        const stringNumberType = (type.aliases as types.MultiType).types[0] as types.MultiType;
+        const booleanType = (type.aliases as types.MultiType).types[1];
 
         it("should construct type properly", () => {
             type.name.should.be.eq("T1");
-            type.aliases.should.be.instanceof(types.BinaryType);
-            stringNumberType.should.be.instanceof(types.BinaryType);
+            type.aliases.should.be.instanceof(types.MultiType);
+            stringNumberType.should.be.instanceof(types.MultiType);
 
-            (type.aliases as types.BinaryType).combinator.should.be.eq(types.BinaryTypeCombinator.Union);
-            stringNumberType.combinator.should.be.eq(types.BinaryTypeCombinator.Intersection);
+            (type.aliases as types.MultiType).combinator.should.be.eq(types.MultiTypeCombinator.Union);
+            stringNumberType.combinator.should.be.eq(types.MultiTypeCombinator.Intersection);
         });
 
         it("should use correct types", () => {
             booleanType.should.eq(types.PropertyKeyword.boolean);
-            stringNumberType.left.should.eq(types.PropertyKeyword.string);
-            stringNumberType.right.should.eq(types.PropertyKeyword.number);
+            stringNumberType.types[0].should.eq(types.PropertyKeyword.string);
+            stringNumberType.types[1].should.eq(types.PropertyKeyword.number);
         });
     });
     
     describe("intersection and union types with parentiesis", () => {
 
         const type = resolveType(`type T1 = (string & number) | boolean`, "T1") as types.AliasedType;
-        const stringNumberType = (type.aliases as types.BinaryType).left as types.BinaryType;
-        const booleanType = (type.aliases as types.BinaryType).right;
+        const stringNumberType = (type.aliases as types.MultiType).types[0] as types.MultiType;
+        const booleanType = (type.aliases as types.MultiType).types[1];
 
         it("should construct type properly", () => {
             type.name.should.be.eq("T1");
-            type.aliases.should.be.instanceof(types.BinaryType);
-            stringNumberType.should.be.instanceof(types.BinaryType);
+            type.aliases.should.be.instanceof(types.MultiType);
+            stringNumberType.should.be.instanceof(types.MultiType);
 
-            (type.aliases as types.BinaryType).combinator.should.be.eq(types.BinaryTypeCombinator.Union);
-            stringNumberType.combinator.should.be.eq(types.BinaryTypeCombinator.Intersection);
+            (type.aliases as types.MultiType).combinator.should.be.eq(types.MultiTypeCombinator.Union);
+            stringNumberType.combinator.should.be.eq(types.MultiTypeCombinator.Intersection);
         });
 
         it("should use correct types", () => {
             booleanType.should.eq(types.PropertyKeyword.boolean);
-            stringNumberType.left.should.eq(types.PropertyKeyword.string);
-            stringNumberType.right.should.eq(types.PropertyKeyword.number);
+            stringNumberType.types[0].should.eq(types.PropertyKeyword.string);
+            stringNumberType.types[1].should.eq(types.PropertyKeyword.number);
         });
     });
     
-    describe("binary type with properties", () => {
+    describe("multi type with properties", () => {
 
         const type = resolveType(`type T1 = ({val: string} & number)`, "T1") as types.AliasedType;
-        const propertiesType = (type.aliases as types.BinaryType).left as types.Properties;
-        const numberType = (type.aliases as types.BinaryType).right as types.PropertyKeyword;
+        const propertiesType = (type.aliases as types.MultiType).types[0] as types.Properties;
+        const numberType = (type.aliases as types.MultiType).types[1] as types.PropertyKeyword;
 
         it("should construct type properly", () => {
             type.name.should.be.eq("T1");
-            type.aliases.should.be.instanceof(types.BinaryType);
+            type.aliases.should.be.instanceof(types.MultiType);
             propertiesType.should.be.instanceof(types.Properties);
             numberType.should.be.instanceof(types.PropertyKeyword);
         });
@@ -392,12 +388,12 @@ describe("nodeParser", function () {
     // describe("array types", () => {
 
     //     const type = resolveType(`type T1 = string[]`, "T1") as types.AliasedType;
-    //     const propertiesType = (type.aliases as types.BinaryType).left as types.Properties;
-    //     const numberType = (type.aliases as types.BinaryType).right as types.PropertyKeyword;
+    //     const propertiesType = (type.aliases as types.MultiType).types[0] as types.Properties;
+    //     const numberType = (type.aliases as types.MultiType).types[1] as types.PropertyKeyword;
 
     //     it("should construct type properly", () => {
     //         type.name.should.be.eq("T1");
-    //         type.aliases.should.be.instanceof(types.BinaryType);
+    //         type.aliases.should.be.instanceof(types.MultiType);
     //         propertiesType.should.be.instanceof(types.Properties);
     //         numberType.should.be.instanceof(types.PropertyKeyword);
     //     });
