@@ -35,6 +35,7 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
             for (var i = 0; i < x.parameters.length; i++) {
                 const p = x.parameters[i];
                 if (!ts.isIdentifier(p.name)) {
+                    // https://github.com/ShaneGH/ts-validator/issues/36
                     throw new Error(`Binding patterns are not supported: ${x.getText(file)}`);
                 }
 
@@ -56,6 +57,7 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
                 continue;
             }
             
+            // https://github.com/ShaneGH/ts-validator/issues/36
             throw new Error(`Binding patterns are not supported: ${x.getText(file)}`);
         }
     });
