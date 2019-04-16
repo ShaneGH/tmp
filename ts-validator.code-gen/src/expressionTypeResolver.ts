@@ -32,6 +32,10 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
     return visitNodesInScope(variable, x => {
 
         if (ts.isFunctionDeclaration(x) || ts.isArrowFunction(x)) {
+            if (x.name && x.name.text === variableName) {
+                return x;
+            }
+
             for (var i = 0; i < x.parameters.length; i++) {
                 const p = x.parameters[i];
                 if (!ts.isIdentifier(p.name)) {
@@ -61,41 +65,129 @@ function findVariableDeclaration(variable: ts.Identifier, file: ts.SourceFile) {
     });
 }
 
-type ObjectCreationProperty<T> = { name: string, value: T | PropertyKeyword | ObjectCreation<T> }; 
+type ObjectCreationProperty<T> = { name: string, value: T | PropertyKeyword | ObjectCreation<T> | ArrayCreation<T> };
 class ObjectCreation<T> {
     constructor(public values: ObjectCreationProperty<T>[]) { }
 }
 
-function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
-    return function (resolve: (type: ts.TypeNode) => T | null): T | PropertyKeyword | ObjectCreation<T> {
+type ArrayElementType<T> = T | PropertyKeyword;
+class ArrayCreation<T> {
+    constructor(public types: ArrayElementType<T>[]) { }
+}
 
-        if (ts.isIdentifier(expr)) {
-            // undefined is handled a little differently
-            if (expr.escapedText.toString() === "undefined") {
-                return propertyKeywords[ts.SyntaxKind.UndefinedKeyword];
-            }
+function resolveForIdentifier<T>(expr: ts.Identifier, file: ts.SourceFile, resolve: (x: ts.TypeNode) => T){
             
-            const varDec = findVariableDeclaration(expr, file);
-            if (!varDec) {
-                throw new Error(`Cannot find declaration of variable: ${expr.getFullText(file)}`);
-            }
+    // undefined is handled a little differently
+    if (expr.escapedText.toString() === "undefined") {
+        return propertyKeywords[ts.SyntaxKind.UndefinedKeyword];
+    }
+    
+    const varDec = findVariableDeclaration(expr, file);
+    if (!varDec) {
+        throw new Error(`Cannot find declaration of variable: ${expr.getFullText(file)}`);
+    }
 
+    if (varDec.type) {
+        return resolve(varDec.type);
+    } else if (ts.isFunctionDeclaration(varDec) || ts.isArrowFunction(varDec)) {
+        //TODO: not sure how to reach this condition
+        throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
+    } else {
+        if (varDec.initializer) {
+            return resolveTypeForExpression<T>(varDec.initializer, file)(resolve);
+        } else {
+            return PropertyKeyword.any;
+        }
+    }
+}
+
+function resolveForObjectLiteral<T>(expr: ts.ObjectLiteralExpression, file: ts.SourceFile, resolve: (x: ts.TypeNode) => T){
+
+    return new ObjectCreation<T>(expr.properties.map(p => {
+        if (ts.isPropertyAssignment(p)) {
+            const name = ts.isIdentifier(p.name)
+                ? p.name.text
+                : ts.isStringLiteral(p.name)
+                    ? p.name.text
+                    : ts.isNumericLiteral(p.name)
+                        ? p.name.text
+                        : null;
+
+            if (name === null) throw new Error(`Cannot resolve name for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
+
+            return {
+                name,
+                value: resolveTypeForExpression<T>(p.initializer, file)(resolve)
+            };
+        }
+
+        throw new Error(`Cannot resolve type for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
+    }));
+}
+
+function resolveForCall<T>(expr: ts.CallExpression, file: ts.SourceFile, resolve: (x: ts.TypeNode) => T){
+    let expression: ts.Expression = expr.expression;
+    while (ts.isParenthesizedExpression(expression)) expression = expression.expression;
+
+    if (ts.isIdentifier(expression)) {
+        const varDec = findVariableDeclaration(expression, file);
+        if (!varDec) {
+            throw new Error(`Cannot find declaration of variable: ${expr.getFullText(file)}`);
+        }
+
+        if (ts.isFunctionDeclaration(varDec) || ts.isArrowFunction(varDec)) {
             if (varDec.type) {
-                const t = resolve(varDec.type);
-                if (!t) {
-                    throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
-                }
+                return resolve(varDec.type);
+            }
+                                
+            throw new Error(`Implicit function return values are not supported. Please specify the function return type explicitly: ${varDec.getFullText(file)}.`);
+        }
 
-                return t;
-            } else if (varDec.initializer) {
-                return resolveTypeForExpression<T>(varDec.initializer, file)(resolve);
-            } else {
-                return PropertyKeyword.any;
+        if (varDec.type) {
+            let type = varDec.type;
+            while (ts.isParenthesizedTypeNode(type)) type = type.type;
+
+            if (ts.isFunctionTypeNode(type)) {
+                return resolve(type.type);
             }
         }
 
-        if (ts.isAsExpression(expr) || ts.isTypeAssertion(expr)) {
-            const t = resolve(expr.type);
+        
+        if (varDec.initializer) {
+            let initializer = varDec.initializer;
+            while (ts.isParenthesizedExpression(initializer)) initializer = initializer.expression;
+
+            if (ts.isFunctionExpression(initializer) || ts.isArrowFunction(initializer)) {
+                if (initializer.type) {
+                    return resolve(initializer.type);
+                }
+                
+                throw new Error(`Implicit function return values are not supported. Please specify the function return type explicitly: ${varDec.initializer.getFullText(file)}.`);
+            }
+        }
+
+        throw new Error(`Expecting object ${ts.SyntaxKind[varDec.kind]}, ${varDec.getFullText(file)} to be a function or arrow function.`);
+    } else if (ts.isFunctionExpression(expression) || ts.isArrowFunction(expression)) {
+        if (expression.type) {
+            return resolve(expression.type);
+        }
+        
+        throw new Error(`Implicit function return values are not supported. Please specify the function return type explicitly: ${expression.getFullText(file)}.`);
+    }
+    
+    // TODO: is there a case for this branch of logic?
+    throw new Error(`Cannot resolve type for object, ${ts.SyntaxKind[expr.kind]}: ${expr.getFullText(file)}`);
+}
+
+function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
+    return function (resolve: (type: ts.TypeNode) => T | null): T | PropertyKeyword | ObjectCreation<T> | ArrayCreation<T> {
+
+        while (ts.isParenthesizedExpression(expr)) expr = expr.expression;
+
+        function resolveOrThrow(type: ts.TypeNode) {
+            while (ts.isParenthesizedTypeNode(type)) type = type.type;
+            
+            const t = resolve(type);
             if (!t) {
                 throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
             }
@@ -103,32 +195,28 @@ function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
             return t;
         }
 
+        if (ts.isIdentifier(expr)) {
+            return resolveForIdentifier(expr, file, resolveOrThrow);
+        }
+
+        if (ts.isAsExpression(expr) || ts.isTypeAssertion(expr)) {
+            return resolveOrThrow(expr.type);
+        }
+
         if (propertyKeywords[expr.kind]) {
             return propertyKeywords[expr.kind];
         }
 
         if (ts.isObjectLiteralExpression(expr)) {
-            return new ObjectCreation<T>(expr.properties.map(p => {
-                if (ts.isPropertyAssignment(p)) {
-                    //Identifier | StringLiteral | NumericLiteral | ComputedPropertyName
-                    const name = ts.isIdentifier(p.name)
-                        ? p.name.text
-                        : ts.isStringLiteral(p.name)
-                            ? p.name.text
-                            : ts.isNumericLiteral(p.name)
-                                ? p.name.text
-                                : null;
+            return resolveForObjectLiteral(expr, file, resolveOrThrow);
+        }
 
-                    if (name === null) throw new Error(`Cannot resolve name for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
+        if (ts.isArrayLiteralExpression(expr)) {
+            return new ArrayCreation<T>([]);
+        }
 
-                    return {
-                        name,
-                        value: resolveTypeForExpression<T>(p.initializer, file)(resolve)
-                    };
-                }
-
-                throw new Error(`Cannot resolve type for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
-            }));
+        if (ts.isCallExpression(expr)) {
+            return resolveForCall(expr, file, resolveOrThrow);
         }
 
         throw new Error(`Cannot resolve type for object, ${ts.SyntaxKind[expr.kind]}: ${expr.getFullText(file)}`);
@@ -136,6 +224,8 @@ function resolveTypeForExpression<T>(expr: ts.Expression, file: ts.SourceFile) {
 }
 
 export {
+    ArrayCreation,
+    ArrayElementType,
     ObjectCreation,
     ObjectCreationProperty,
     resolveTypeForExpression

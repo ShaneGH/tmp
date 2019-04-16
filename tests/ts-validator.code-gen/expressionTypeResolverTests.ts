@@ -2,7 +2,7 @@ import * as chai from 'chai';
 import * as ts from 'typescript';
 import { transform } from '../../ts-validator.code-gen/src/fileTransformer';
 import { PropertyKeyword } from 'ts-validator.core';
-import { resolveTypeForExpression, ObjectCreation } from '../../ts-validator.code-gen/src/expressionTypeResolver';
+import { ArrayCreation, resolveTypeForExpression, ObjectCreation } from '../../ts-validator.code-gen/src/expressionTypeResolver';
 
 chai.should();
 
@@ -21,8 +21,8 @@ describe("resolver", function () {
         );
     }
 
-    function getTypeReference(codeToValidate: string) {
-        const file = createFile(`import { validate } from 'ts-validator.validator';\nvalidate(${codeToValidate});`);
+    function getTypeReference(setup: string, codeToValidate: string) {
+        const file = createFile(`import { validate } from 'ts-validator.validator';\n${setup}\nvalidate(${codeToValidate});`);
         return {
             file,
             arg: transform(file, "tyLoc", "testFile.ts").typeKeys[0].value
@@ -32,11 +32,20 @@ describe("resolver", function () {
     describe("compile variable type tests", function () {
             
         function execute (type: string, value: string, 
-            explicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node>) => void, 
-            implicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node>) => void, 
-            direct?: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node>) => void) {
+            explicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
+            implicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
+            direct?: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void) {
+
+            return executeWithSetup("", type, value, explicit, implicit, direct);
+        }
+            
+        function executeWithSetup (setup: string, type: string, value: string, 
+            explicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
+            implicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
+            direct?: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void) {
             it("explicit", () => {
                 const file = createFile(`import { validate } from 'ts-validator.validator';
+${setup}
 let x: ${type} = ${value};
 validate(x);`);
                 const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
@@ -46,6 +55,7 @@ validate(x);`);
             
             it("implicit", () => {
                 const file = createFile(`import { validate } from 'ts-validator.validator';
+${setup}
 const x = ${value};
 validate(x);`);
                 const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
@@ -54,7 +64,7 @@ validate(x);`);
             });
             
             it("direct", () => {
-                const ref = getTypeReference(value);
+                const ref = getTypeReference(setup, value);
                 const result = resolveTypeForExpression<ts.TypeNode>(ref.arg, ref.file)(x => x);
                 (direct || implicit)(result);
             });
@@ -105,6 +115,11 @@ validate(x);`);
             execute("string", "<string>null",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword)));
+
+        describe("for a parentiesized type", () =>
+            execute("(string)", "'hi'",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
+                x => x.should.be.eq(PropertyKeyword.string)));
         
         describe("for empty object", () =>
             execute("object", "{}",
@@ -133,6 +148,140 @@ validate(x);`);
                     inner.values[0].name.should.eq("4", "name");
                     inner.values[0].value.should.eq(PropertyKeyword.boolean);
                 }));
+
+        describe("empty array", () =>
+            execute("number[]", "[]",
+                x => {
+                    (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
+                },
+                x => {
+                    (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
+                }));
+
+        describe("array with multiple values", () =>
+            execute("number[]", "[2, 3]",
+                x => {
+                    throw new Error("TODO");
+                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
+                },
+                x => {
+                    throw new Error("TODO");
+                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
+                }));
+
+        describe("array with multiple types", () =>
+            execute("(number | string)[]", "[2, 'val']",
+                x => {
+                    throw new Error("TODO");
+                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
+                },
+                x => {
+                    throw new Error("TODO");
+                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
+                }));
+
+        describe("array with complex object", () =>
+            execute("({val: string})[]", "[{val: 'hi'}]",
+                x => {
+                    throw new Error("TODO");
+                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
+                },
+                x => {
+                    throw new Error("TODO");
+                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
+                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
+                }));
+                
+        describe("for complex object with array  withcomplex object", () =>
+            execute("{x: [{y: [{z: number}]}]}", '{x: [{y: [{z: 3}]}]}',
+                x => {
+                    throw new Error("TODO");
+                    (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectKeyword)
+                },
+                x => {
+                    throw new Error("TODO");
+                    // let outer = x as ObjectCreation<ts.Node>;
+                    // outer.should.be.instanceOf(ObjectCreation);
+
+                    // outer.values.length.should.eq(2);
+                    // outer.values[0].name.should.eq("x", "name");
+                    // outer.values[0].value.should.eq(PropertyKeyword.number);
+                    
+                    // outer.values[1].name.should.eq("y", "name");
+                    // let inner = outer.values[1].value as ObjectCreation<ts.Node>;
+                    // inner.should.be.instanceOf(ObjectCreation);
+                    
+                    // inner.values.length.should.eq(1);
+                    // inner.values[0].name.should.eq("4", "name");
+                    // inner.values[0].value.should.eq(PropertyKeyword.boolean);
+                }));
+
+        describe("function result 1", () =>
+            executeWithSetup("function f(): number { return 5 }", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 2", () =>
+            executeWithSetup("const f: () => number = null as any;", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 3", () =>
+            executeWithSetup("const f: (() => number) = null as any;", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 4", () =>
+            executeWithSetup("const f = function (): number { return 5 };", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("arrow function result 4", () =>
+            executeWithSetup("const f = (): number => { return 5 };", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 5", () =>
+            executeWithSetup("const f = function (): (number) { return 5 };", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("arrow function result 5", () =>
+            executeWithSetup("const f = (): (number | string) => { return 5 };", "(number | string)", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.UnionType),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.UnionType)));
+
+        describe("function result 6", () =>
+            executeWithSetup("const f = (function (): number { return 5 });", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 6", () =>
+            executeWithSetup("const f = ((): number => { return 5 });", "number", "f()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 7", () =>
+            execute("number", "(function (): number { return 5 }())",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("function result 8", () =>
+            execute("number", "(function (): number { return 5 })()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
+
+        describe("arrow function result 8", () =>
+            execute("number", "((): number => { return 5 })()",
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword)));
 
     /* // https://github.com/ShaneGH/ts-validator/issues/7
 validate([])
