@@ -7,7 +7,7 @@ import { convertType } from '../../ts-validator.code-gen/src/typeConvertor';
 
 chai.should();
 
-describe("nodeParser", function () {
+describe("typeConvertor", function () {
 
     function pad(text: string, pad: number) {
         var p = "";
@@ -27,19 +27,26 @@ describe("nodeParser", function () {
         );
     }
 
-    function resolveType(code: string, typeName: string, testSerializer = true) {
+    function resolveType(code: string, typeName: string) {
         const file = createFile(code + "\nvar t: " + typeName + ";");
-        const variableTypes = tsquery<ts.TypeReferenceNode>(file, "VariableDeclaration TypeReference");
+        const variableTypes = tsquery<ts.VariableDeclaration>(file, "VariableDeclaration");
         if (!variableTypes.length) {
             print(file);
             throw new Error("Could not find variable.");
         }
 
-        const type = convertType(variableTypes[variableTypes.length - 1], file, "testFile.ts");
+        let type = convertType(variableTypes[variableTypes.length - 1].type as ts.TypeNode, file, "testFile.ts");
         if (!type) {
             print(file);
             throw new Error("Could not resolve type.");
         }
+        
+        return { type, file };
+    }
+
+    function resolveAliasedType(code: string, typeName: string, testSerializer = true) {
+
+        let { type, file } = resolveType(code, typeName);
 
         if (!(type instanceof types.AliasedType)) {
             print(file);
@@ -52,23 +59,26 @@ describe("nodeParser", function () {
             throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
         }
 
-        if (!testSerializer) return type;
+        if (testSerializer) {
 
-        const ser = JSON.parse(JSON.stringify(types.serialize([type])));
-        const t = _(types.deserialize(ser).enumerate())
-            .filter(x => x.value.name === typeName)
-            .map(x => x.value)
-            .first();
+            const ser = JSON.parse(JSON.stringify(types.serialize([type])));
+            const t = _(types.deserialize(ser).enumerate())
+                .filter(x => x.value.name === typeName)
+                .map(x => x.value)
+                .first();
 
-        if (!t) throw Error(`Could not find type: ${typeName} in deserialized values.`);
+            if (!t) throw Error(`Could not find type: ${typeName} in deserialized values.`);
 
-        return t;
+            type = t;
+        }
+
+        return type;
     }
 
     function runForDeclaration(classOrInterface: string, name: string) {
         
         describe("should parse simple properties from interface", function () {
-            const type = resolveType(classOrInterface + "{ prop1: string; prop2: number; prop3: boolean; prop4: any; prop5: null; prop6: undefined }", name);
+            const type = resolveAliasedType(classOrInterface + "{ prop1: string; prop2: number; prop3: boolean; prop4: any; prop5: null; prop6: undefined }", name);
 
             it("should parse correct name type and property length", () => {
                 ((type.aliases as types.Properties).properties as types.Property[]).length.should.equal(6);
@@ -109,7 +119,7 @@ describe("nodeParser", function () {
         });
 
         describe("should parse complex properties from interface", function () {
-            const type = resolveType(classOrInterface + "{ prop1: { prop2: string, prop3: number } }", name);
+            const type = resolveAliasedType(classOrInterface + "{ prop1: { prop2: string, prop3: number } }", name);
 
             let firstProperty: types.Property;
             it("should parse correct type and property length", () => {
@@ -157,7 +167,7 @@ describe("nodeParser", function () {
 
         describe(`should parse type alias`, function () {
             
-            const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT") as types.AliasedType;
+            const type = resolveAliasedType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT") as types.AliasedType;
             let aliasedTypeName: string;
             let aliasedTypeProperties: types.Property[];
 
@@ -179,7 +189,7 @@ describe("nodeParser", function () {
         function runForTypeAlias(aliasedType: types.PropertyKeyword) {
 
             describe(`should parse type alias: ${aliasedType.keyword}`, function () {
-                const type = resolveType("type MyT = " + aliasedType.keyword, "MyT") as types.AliasedType;
+                const type = resolveAliasedType("type MyT = " + aliasedType.keyword, "MyT") as types.AliasedType;
 
                 it("should parse correct type and property aliased value", () => {
                     type.name.should.equal("MyT");
@@ -200,7 +210,7 @@ describe("nodeParser", function () {
     });
 
     describe("type ids", function () {
-        const type = resolveType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT");
+        const type = resolveAliasedType("interface MyI { prop1: string }\ntype MyT = MyI", "MyT");
 
         it("should parse correct type and property length", () => {
             type.name.should.equal("MyT");
@@ -214,7 +224,7 @@ describe("nodeParser", function () {
     function inheritance (classOrInterface: "class" | "interface") {
         describe(classOrInterface + " inheritance", function () {
 
-            const type = resolveType(
+            const type = resolveAliasedType(
                 `${classOrInterface} My1 { prop1: string }\n${classOrInterface} My2 extends My1 { prop2: number }`, "My2"
                 ) as types.AliasedType;
 
@@ -250,7 +260,7 @@ describe("nodeParser", function () {
     inheritance("interface");
 
     describe("type recursion", () => {
-        const type = resolveType(`interface My1 { prop1: My1 }`, "My1") as types.AliasedType;
+        const type = resolveAliasedType(`interface My1 { prop1: My1 }`, "My1") as types.AliasedType;
 
         it("should construct interface properly", () => {
             type.name.should.be.eq("My1");
@@ -272,7 +282,7 @@ describe("nodeParser", function () {
         describe(name + " types", () => {
             describe("horizontal", () => {
 
-                const type = resolveType(`type T1 = string ${t} number ${t} boolean`, "T1") as types.AliasedType;
+                const type = resolveAliasedType(`type T1 = string ${t} number ${t} boolean`, "T1") as types.AliasedType;
                 const stringType = (type.aliases as types.MultiType).types[0];
                 const numberType = (type.aliases as types.MultiType).types[1];
                 const booleanType = (type.aliases as types.MultiType).types[2];
@@ -290,7 +300,7 @@ describe("nodeParser", function () {
             
             describe("nested", () => {
 
-                const type = resolveType(`type T1 = string; type T2 = {val: string}; type T3 = T1 ${t} T2`, "T3") as types.AliasedType;
+                const type = resolveAliasedType(`type T1 = string; type T2 = {val: string}; type T3 = T1 ${t} T2`, "T3") as types.AliasedType;
                 const left = (type.aliases as types.MultiType).types[0] as types.LazyTypeReference;
                 const right = (type.aliases as types.MultiType).types[1] as types.LazyTypeReference;
 
@@ -322,7 +332,7 @@ describe("nodeParser", function () {
     
     describe("intersection and union types combined", () => {
 
-        const type = resolveType(`type T1 = string & number | boolean`, "T1") as types.AliasedType;
+        const type = resolveAliasedType(`type T1 = string & number | boolean`, "T1") as types.AliasedType;
         const stringNumberType = (type.aliases as types.MultiType).types[0] as types.MultiType;
         const booleanType = (type.aliases as types.MultiType).types[1];
 
@@ -344,7 +354,7 @@ describe("nodeParser", function () {
     
     describe("intersection and union types with parentiesis", () => {
 
-        const type = resolveType(`type T1 = (string & number) | boolean`, "T1") as types.AliasedType;
+        const type = resolveAliasedType(`type T1 = (string & number) | boolean`, "T1") as types.AliasedType;
         const stringNumberType = (type.aliases as types.MultiType).types[0] as types.MultiType;
         const booleanType = (type.aliases as types.MultiType).types[1];
 
@@ -366,7 +376,7 @@ describe("nodeParser", function () {
     
     describe("multi type with properties", () => {
 
-        const type = resolveType(`type T1 = ({val: string} & number)`, "T1") as types.AliasedType;
+        const type = resolveAliasedType(`type T1 = ({val: string} & number)`, "T1") as types.AliasedType;
         const propertiesType = (type.aliases as types.MultiType).types[0] as types.Properties;
         const numberType = (type.aliases as types.MultiType).types[1] as types.PropertyKeyword;
 
@@ -388,7 +398,7 @@ describe("nodeParser", function () {
     describe("array types", () => {
 
         it("should construct type properly", () => {
-            const type = resolveType(`type T1 = string[]`, "T1") as types.AliasedType;
+            const type = resolveAliasedType(`type T1 = string[]`, "T1") as types.AliasedType;
 
             type.name.should.be.eq("T1");
             type.should.be.instanceof(types.AliasedType);
@@ -398,7 +408,7 @@ describe("nodeParser", function () {
         });
 
         it("should construct more complex type properly", () => {
-            const type = resolveType(`type T1 = ({val: number} | boolean)[]`, "T1") as types.AliasedType;
+            const type = resolveAliasedType(`type T1 = ({val: number} | boolean)[]`, "T1") as types.AliasedType;
 
             type.name.should.be.eq("T1");
             type.should.be.instanceof(types.AliasedType);
@@ -407,4 +417,30 @@ describe("nodeParser", function () {
             (type.aliases as types.ArrayType).type.should.be.instanceof(types.MultiType);
         });
     });
+    
+    // // https://github.com/ShaneGH/ts-validator/issues/37
+    // describe("anonymous types", () => {
+
+    //     it("should construct type keyword type properly", () => {
+    //         resolveType(``, "string").type.should.eq(types.PropertyKeyword.string)
+    //     });
+
+    //     it("should construct type array type properly", () => {
+    //         const result = resolveType(``, "string[]");
+    //         result.should.be.instanceof(types.ArrayType);
+    //         (result as types.ArrayType).type.should.eq(types.PropertyKeyword.string)
+
+    //     });
+
+    //     it("should construct anonymous type properly", () => {
+    //         const result = resolveType(``, "{val: string, val2: {val3: boolean}}").type;
+    //         result.should.be.instanceof(types.Properties);
+    //         (result as types.Properties).properties[0].name.should.be.eq("val");
+    //         (result as types.Properties).properties[0].type.should.be.eq(types.PropertyKeyword.string);
+    //         (result as types.Properties).properties[1].name.should.be.eq("val2");
+    //         (result as types.Properties).properties[0].type.should.be.instanceof(types.Properties);
+    //     });
+        
+    //     // ALSO do one with array and complex object
+    // });
 });

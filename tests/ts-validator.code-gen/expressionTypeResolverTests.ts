@@ -2,7 +2,7 @@ import * as chai from 'chai';
 import * as ts from 'typescript';
 import { transform } from '../../ts-validator.code-gen/src/fileTransformer';
 import { PropertyKeyword } from 'ts-validator.core';
-import { ArrayCreation, resolveTypeForExpression, ObjectCreation } from '../../ts-validator.code-gen/src/expressionTypeResolver';
+import { resolveTypeForExpression, UnknownExpression } from '../../ts-validator.code-gen/src/expressionTypeResolver';
 
 chai.should();
 
@@ -32,24 +32,24 @@ describe("resolver", function () {
     describe("compile variable type tests", function () {
             
         function execute (type: string, value: string, 
-            explicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
-            implicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
-            direct?: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void) {
+            explicit: <T extends ts.Node | UnknownExpression>(x: T) => void, 
+            implicit: <T extends ts.Node | UnknownExpression>(x: T) => void, 
+            direct?: <T extends ts.Node | UnknownExpression>(x: T) => void) {
 
             return executeWithSetup("", type, value, explicit, implicit, direct);
         }
             
         function executeWithSetup (setup: string, type: string, value: string, 
-            explicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
-            implicit: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void, 
-            direct?: (x: ts.Node | PropertyKeyword | ObjectCreation<ts.Node> | ArrayCreation<ts.Node>) => void) {
+            explicit: <T extends ts.Node | UnknownExpression>(x: T) => void, 
+            implicit: <T extends ts.Node | UnknownExpression>(x: T) => void, 
+            direct?: <T extends ts.Node | UnknownExpression>(x: T) => void) {
             it("explicit", () => {
                 const file = createFile(`import { validate } from 'ts-validator.validator';
 ${setup}
 let x: ${type} = ${value};
 validate(x);`);
                 const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-                const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+                const result = resolveTypeForExpression(arg, file);
                 explicit(result);
             });
             
@@ -59,13 +59,13 @@ ${setup}
 const x = ${value};
 validate(x);`);
                 const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-                const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+                const result = resolveTypeForExpression(arg, file);
                 implicit(result);
             });
             
             it("direct", () => {
                 const ref = getTypeReference(setup, value);
-                const result = resolveTypeForExpression<ts.TypeNode>(ref.arg, ref.file)(x => x);
+                const result = resolveTypeForExpression(ref.arg, ref.file);
                 (direct || implicit)(result);
             });
         }
@@ -73,37 +73,37 @@ validate(x);`);
         describe("for a string", () => {
             execute("string", "'hi'",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
-                x => x.should.be.eq(PropertyKeyword.string));
+                x => x.kind.should.be.eq(ts.SyntaxKind.StringLiteral));
         });
         
         describe("for a number", () => {
             execute("number", "7",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NumberKeyword),
-                x => x.should.be.eq(PropertyKeyword.number));
+                x => x.kind.should.be.eq(ts.SyntaxKind.NumericLiteral));
         });
         
         describe("for true", () => {
             execute("boolean", "true",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.BooleanKeyword),
-                x => x.should.be.eq(PropertyKeyword.boolean));
+                x => x.kind.should.be.eq(ts.SyntaxKind.TrueKeyword));
         });
         
         describe("for false", () => {
             execute("boolean", "false",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.BooleanKeyword),
-                x => x.should.be.eq(PropertyKeyword.boolean));
+                x => x.kind.should.be.eq(ts.SyntaxKind.FalseKeyword));
         });
         
         describe("for null", () => {
             execute("null", "null",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.NullKeyword),
-                x => x.should.be.eq(PropertyKeyword.null));
+                x => x.kind.should.be.eq(ts.SyntaxKind.NullKeyword));
         });
         
         describe("for undefined", () => {
             execute("undefined", "undefined",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.UndefinedKeyword),
-                x => x.should.be.eq(PropertyKeyword.undefined));
+                x => x.kind.should.be.eq(ts.SyntaxKind.UndefinedKeyword));
         });
         
         describe("for literal as", () =>
@@ -119,109 +119,22 @@ validate(x);`);
         describe("for a parentiesized type", () =>
             execute("(string)", "'hi'",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.StringKeyword),
-                x => x.should.be.eq(PropertyKeyword.string)));
+                x => x.kind.should.be.eq(ts.SyntaxKind.StringLiteral)));
         
         describe("for empty object", () =>
             execute("object", "{}",
                 x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectKeyword),
-                x => {
-                    x.should.be.instanceOf(ObjectCreation);
-                    (x as ObjectCreation<ts.Node>).values.length.should.eq(0);
-                }));
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectLiteralExpression)));
                 
         describe("for complex object", () =>
-            execute("object", '{x: 5, "y": {4: true}}',
-                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectKeyword),
-                x => {
-                    let outer = x as ObjectCreation<ts.Node>;
-                    outer.should.be.instanceOf(ObjectCreation);
+            execute('{x: number, "y": {4: boolean}}', '{x: 5, "y": {4: true}}',
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.TypeLiteral),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectLiteralExpression)));
 
-                    outer.values.length.should.eq(2);
-                    outer.values[0].name.should.eq("x", "name");
-                    outer.values[0].value.should.eq(PropertyKeyword.number);
-                    
-                    outer.values[1].name.should.eq("y", "name");
-                    let inner = outer.values[1].value as ObjectCreation<ts.Node>;
-                    inner.should.be.instanceOf(ObjectCreation);
-                    
-                    inner.values.length.should.eq(1);
-                    inner.values[0].name.should.eq("4", "name");
-                    inner.values[0].value.should.eq(PropertyKeyword.boolean);
-                }));
-
-        describe("empty array", () =>
+        describe("array", () =>
             execute("number[]", "[]",
-                x => {
-                    (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
-                },
-                x => {
-                    (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
-                }));
-
-        describe("array with multiple values", () =>
-            execute("number[]", "[2, 3]",
-                x => {
-                    throw new Error("TODO");
-                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
-                },
-                x => {
-                    throw new Error("TODO");
-                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
-                }));
-
-        describe("array with multiple types", () =>
-            execute("(number | string)[]", "[2, 'val']",
-                x => {
-                    throw new Error("TODO");
-                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
-                },
-                x => {
-                    throw new Error("TODO");
-                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
-                }));
-
-        describe("array with complex object", () =>
-            execute("({val: string})[]", "[{val: 'hi'}]",
-                x => {
-                    throw new Error("TODO");
-                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.NumberKeyword);
-                },
-                x => {
-                    throw new Error("TODO");
-                    // (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType);
-                    // (x as ts.ArrayTypeNode).elementType.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
-                }));
-                
-        describe("for complex object with array  withcomplex object", () =>
-            execute("{x: [{y: [{z: number}]}]}", '{x: [{y: [{z: 3}]}]}',
-                x => {
-                    throw new Error("TODO");
-                    (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ObjectKeyword)
-                },
-                x => {
-                    throw new Error("TODO");
-                    // let outer = x as ObjectCreation<ts.Node>;
-                    // outer.should.be.instanceOf(ObjectCreation);
-
-                    // outer.values.length.should.eq(2);
-                    // outer.values[0].name.should.eq("x", "name");
-                    // outer.values[0].value.should.eq(PropertyKeyword.number);
-                    
-                    // outer.values[1].name.should.eq("y", "name");
-                    // let inner = outer.values[1].value as ObjectCreation<ts.Node>;
-                    // inner.should.be.instanceOf(ObjectCreation);
-                    
-                    // inner.values.length.should.eq(1);
-                    // inner.values[0].name.should.eq("4", "name");
-                    // inner.values[0].value.should.eq(PropertyKeyword.boolean);
-                }));
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayType),
+                x => (x as ts.Node).kind.should.be.eq(ts.SyntaxKind.ArrayLiteralExpression)));
 
         describe("function result 1", () =>
             executeWithSetup("function f(): number { return 5 }", "number", "f()",
@@ -309,8 +222,8 @@ var x;
 validate(x);`);
 
             const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
-            result.should.eq(PropertyKeyword.any);
+            const result = resolveTypeForExpression(arg, file);
+            result.kind.should.eq(ts.SyntaxKind.AnyKeyword);
         });
     });
 
@@ -322,7 +235,7 @@ function doSomething(x: string) {
 }`);
 
             const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            const result = resolveTypeForExpression(arg, file);
             (result as ts.TypeNode).kind.should.eq(ts.SyntaxKind.StringKeyword);
         });
         
@@ -333,8 +246,8 @@ function doSomething(x) {
 }`);
 
             const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
-            result.should.eq(PropertyKeyword.any);
+            const result = resolveTypeForExpression(arg, file);
+            result.kind.should.eq(ts.SyntaxKind.AnyKeyword);
         });
     });
 
@@ -346,7 +259,7 @@ const doSomething = (x: string) => {
 }`);
 
             const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            const result = resolveTypeForExpression(arg, file);
             (result as ts.TypeNode).kind.should.eq(ts.SyntaxKind.StringKeyword);
         });
         
@@ -357,8 +270,8 @@ const doSomething = (x) => {
 }`);
 
             const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
-            result.should.eq(PropertyKeyword.any);
+            const result = resolveTypeForExpression(arg, file);
+            result.kind.should.eq(ts.SyntaxKind.AnyKeyword);
         });
     });
 
@@ -370,7 +283,7 @@ const doSomething = (...x: string[]) => {
 }`);
 
             const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
-            const result = resolveTypeForExpression<ts.TypeNode>(arg, file)(x => x);
+            const result = resolveTypeForExpression(arg, file);
             (result as ts.TypeNode).kind.should.eq(ts.SyntaxKind.ArrayType);
         });
     });

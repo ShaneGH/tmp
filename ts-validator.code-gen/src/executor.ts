@@ -2,9 +2,10 @@ import { transform } from './fileTransformer'
 import * as ts from 'typescript'
 import * as _ from 'lodash';
 import { validatorModuleName } from './const';
-import { AliasedType, LazyDictionary, Type, Properties, Property, LazyTypeReference } from 'ts-validator.core';
+import { AliasedType, LazyDictionary, PropertyKeyword, LazyTypeReference } from 'ts-validator.core';
 import { convertType } from './typeConvertor';
-import { resolveTypeForExpression, ObjectCreation, ObjectCreationProperty } from './expressionTypeResolver';
+import { resolveObject } from './objectConvertor';
+import { resolveTypeForExpression, TypeExpression, UnknownExpression } from './expressionTypeResolver';
 import { generateValidateFile } from './clientSideValidator';
 
 const tsValidatorFile = validatorModuleName + "-types.ts";
@@ -19,21 +20,23 @@ type ExecuteDependencies = {
     convertRelativePathToUnix: (path: string) => string
 }
 
-function rewrapObjectCreationProperty(property: ObjectCreationProperty<Type>): Property {
-    const value = rewrapObjectCreation(property.value);
-    return new Property(
-        property.name,
-        value instanceof AliasedType 
-            ? new LazyTypeReference(value.id, () => value) 
-            : value);
-}
+function crateType(state: LazyDictionary<AliasedType>, file: ts.SourceFile, fileRelativePath: string) {
+    return function (expr: TypeExpression) {
+        if (expr instanceof UnknownExpression) {
+            return resolveObject(expr, file);
+        }
 
-function rewrapObjectCreation(values: Type | ObjectCreation<Type>): Type {
-    if (!(values instanceof ObjectCreation)) {
-        return values;
+        if (ts.isObjectLiteralExpression(expr) || ts.isArrayLiteralExpression(expr)) {
+            return resolveObject(expr, file);
+        }
+
+        const result = convertType(expr, file, fileRelativePath, state);
+        if (!result) {
+            throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
+        }
+
+        return result;
     }
-
-    return new Properties(values.values.map(rewrapObjectCreationProperty));
 }
 
 const execute = (fileName: string) => async (dependencies: ExecuteDependencies) => {
@@ -63,11 +66,20 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
         transformed.file.fileName,
         printer.printFile(transformed.file));
 
-    const state = new LazyDictionary<AliasedType>();
+    const f = crateType(new LazyDictionary<AliasedType>(), transformed.file, fileRelativePath);
+    function crtyp(expr: TypeExpression) {
+        const result = f(expr);
+        if (result instanceof LazyTypeReference) {
+            return result.getType();
+        }
+
+        return result;
+    }
+
     const typeMap = transformed.typeKeys.map(tk => ({
         key: tk.key,
-        value: rewrapObjectCreation(
-            resolveTypeForExpression<Type>(tk.value, transformed.file)(x => convertType(x, transformed.file, fileRelativePath, state)))
+        value: crtyp(
+            resolveTypeForExpression(tk.value, transformed.file))
     }));
 
     const validateFile = generateValidateFile(typeMap, {strictNullChecks: true});

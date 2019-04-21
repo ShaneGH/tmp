@@ -1,5 +1,7 @@
 
 
+// https://github.com/ShaneGH/ts-validator/issues/39
+
 export class PropertyKeyword {
     private constructor(public keyword: string, public validate: (x: any) => boolean) {}
 
@@ -21,6 +23,10 @@ export class PropertyKeyword {
 
         throw new Error(`${key} is not a valid property keyword.`);
     }
+
+    equals(other: any): boolean {
+        return other === this;
+    }
 }
 
 export enum MultiTypeCombinator {
@@ -30,14 +36,56 @@ export enum MultiTypeCombinator {
 
 export class Property {
     constructor (public name: string, public type: PropertyType) {}
+
+    equals(other: any): boolean {
+        if (!(other instanceof Property)) return false;
+        return other.name === this.name && this.type.equals(other.type);
+    }
+}
+
+type Eq = {equals: (x: any) => boolean}
+function compareArrays(arr1: Eq[], arr2: Eq[]): boolean {
+    if (arr1.length !== arr2.length) return false;
+
+    // make read/write copy
+    arr2 = arr2.slice();
+    for (var i = 0; i < arr1.length; i++) {
+        for (var j = 0; j < arr2.length; j++) {
+            if (arr1[i].equals(arr2[j])) {
+                arr2.splice(j, 1);
+                break;
+            }
+        }
+        
+        if (j >= arr2.length) return false;
+    }
+
+    return true;
 }
 
 export class Properties {
     constructor (public properties: Property[]) {}
+
+    equals(other: any): boolean {
+        if (!(other instanceof Properties)) return false;
+        return compareArrays(other.properties, this.properties);
+    }
 }
 
 export class AliasedType {
     constructor (public id: string, public name: string, public aliases: PropertyType) {
+    }
+
+    equals(other: any): boolean {
+        if (other instanceof AliasedType) {
+            return this.aliases.equals(other.aliases);
+        }
+        
+        if (other instanceof LazyTypeReference) {
+            return this.aliases.equals(other.getType());
+        }
+        
+        return false;
     }
 }
 
@@ -47,15 +95,39 @@ export class LazyTypeReference {
     getType() {
         return this.type();
     }
+
+    equals(other: any): boolean {
+        if (other instanceof AliasedType) {
+            return this.getType().equals(other.aliases);
+        }
+        
+        if (other instanceof LazyTypeReference) {
+            return this.getType().equals(other.getType());
+        }
+        
+        return false;
+    }
 }
 
 export class MultiType {
     constructor(public types: PropertyType[], public combinator: MultiTypeCombinator) {
     }
+
+    equals(other: any): boolean {
+        if (!(other instanceof MultiType)) return false;
+        if (this.combinator !== other.combinator) return false;
+        
+        return compareArrays(other.types, this.types);
+    }
 }
 
 export class ArrayType {
     constructor(public type: PropertyType) { }
+
+    equals(other: any): boolean {
+        if (!(other instanceof ArrayType)) return false;
+        return this.type.equals(other.type);
+    }
 }
 
 export type CommonType = MultiType | PropertyKeyword | Properties | ArrayType;
