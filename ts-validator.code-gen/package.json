@@ -13,6 +13,7 @@
     "typescript": "3.4.3"
   },
   "dependencies": {
+    "@phenomnomnominal/tsquery": "^3.0.0",
     "@types/lodash": "^4.14.123",
     "@types/node": "^11.13.4",
     "lodash": "^4.17.11",

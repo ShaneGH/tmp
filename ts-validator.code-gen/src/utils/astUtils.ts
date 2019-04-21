@@ -6,7 +6,7 @@ function _isAncestor(child: ts.Node | undefined, parent: ts.Node): boolean {
     return child === parent || _isAncestor(child.parent, parent);
 }
 
-function isAncestor(child: ts.Node, parent: ts.Node) {
+export function isAncestor(child: ts.Node, parent: ts.Node) {
     return child !== parent && _isAncestor(child, parent);
 }
 
@@ -34,12 +34,7 @@ function _visitNodesInScope<TResult>(current: ts.Node, visitor: (x: ts.Node) => 
         : null;
 }
 
-function visitNodesInScope<TResult>(node: ts.Node, visitor: (x: ts.Node) => VisitResult<TResult>) {
+export function visitNodesInScope<TResult>(node: ts.Node, visitor: (x: ts.Node) => VisitResult<TResult>) {
     if (!node.parent) return null;
     return _visitNodesInScope(node.parent, visitor);
 }
-
-export {
-    isAncestor,
-    visitNodesInScope
-};
