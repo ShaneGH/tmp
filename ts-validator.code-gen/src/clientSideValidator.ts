@@ -8,7 +8,7 @@ interface ICodeFile {
     log(): void
 }
 
-class CodeWriter implements ICodeFile {
+export class CodeWriter implements ICodeFile {
     private _tab = 0;
     private _code: string[] = [];
 

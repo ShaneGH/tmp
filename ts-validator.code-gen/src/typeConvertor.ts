@@ -35,39 +35,19 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state:
         throw new Error(`Member ${node.getText(state.file)} is not supported.`);
     }
 
-    if (!ts.isIdentifier(node.name)) {
+    const name = ts.isIdentifier(node.name)
+        || ts.isStringLiteral(node.name)
+        || ts.isNumericLiteral(node.name)
+            ? node.name.text
+            : null;
+
+    if (!name) {
         throw new Error(`Member ${node.getText(state.file)} is not supported.`);
     }
 
-    if (propertyKeywords[node.type.kind]) {
-        const k = node.type.kind;
-        return new Property(
-            node.name.escapedText.toString(),
-            propertyKeywords[k]);
-    }
-
-    if (ts.isTypeLiteralNode(node.type)) {
-        return new Property(
-            node.name.escapedText.toString(),
-            new Properties(getProperties(node.type, state)));
-    }
-
-    if (ts.isTypeReferenceNode(node.type)) {
-        if (!ts.isIdentifier(node.type.typeName)) {
-            throw new Error(`Member ${node.getText(state.file)} is not supported.`);
-        }
-
-        const result = resolveType(node.type.typeName, state);
-        if (!result) {
-            throw new Error(`Cannot find type ${node.type.typeName.getText(state.file)} for property ${node.name.escapedText.toString()}.`);
-        }
-
-        return new Property(
-            node.name.escapedText.toString(),
-            result);
-    }
-    
-    throw new Error(`Member ${node.getText(state.file)} is not supported.`);
+    return new Property(
+        name,
+        resolveTypeOrThrow(node.type, state));
 }
 
 function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, state: ResolveTypeState): Property[] {
@@ -257,16 +237,16 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState)
     }
     
     const typeName = ts.isIdentifier(name)
-        ? [name.escapedText.toString()]
+        ? [name.text]
         : name.getText(state.file).split(".");
 
     if (typeName.length == 1) {
         return visitNodesInScope(type, x => {
             if (ts.isInterfaceDeclaration(x) || ts.isClassDeclaration(x)) {
-                if (x.name && x.name.escapedText.toString() === typeName[0]) {
+                if (x.name && x.name.text === typeName[0]) {
                     return buildClasssOrInterfaceType(typeName[0], x, state);
                 }
-            } else if (ts.isTypeAliasDeclaration(x) && x.name.escapedText.toString() === typeName[0]) {
+            } else if (ts.isTypeAliasDeclaration(x) && x.name.text === typeName[0]) {
                 return buildTypeAliasType(typeName[0], x, state);
             }
         }) || null;

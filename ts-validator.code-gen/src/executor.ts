@@ -52,7 +52,36 @@ function crateType(state: LazyDictionary<AliasedType>, file: ts.SourceFile, file
     }
 }
 
-const execute = (fileName: string) => async (dependencies: ExecuteDependencies) => {
+export function generateFilesAndTypes (file: ts.SourceFile, typesFileName: string, fileRelativePath: string) {
+
+    const transformed = transform(file, typesFileName, fileRelativePath);
+
+    const f = crateType(new LazyDictionary<AliasedType>(), transformed.file, fileRelativePath);
+    function crtyp(expr: TypeExpression) {
+        const result = f(expr);
+        if (result instanceof LazyTypeReference) {
+            return result.getType();
+        }
+
+        return result;
+    }
+
+    const typeMap = transformed.typeKeys.map(tk => ({
+        key: tk.key,
+        value: crtyp(
+            resolveTypeForExpression(tk.value, transformed.file))
+    }));
+
+    const validateFile = generateValidateFile(typeMap, {strictNullChecks: true});
+
+    return {
+        transformedFile: transformed.file,
+        typeMap,
+        validateFile
+    };
+}
+
+export const execute = (fileName: string) => async (dependencies: ExecuteDependencies) => {
     const file = ts.createSourceFile(
         fileName, 
         await dependencies.readFile(fileName),
@@ -74,35 +103,14 @@ const execute = (fileName: string) => async (dependencies: ExecuteDependencies) 
                 proj,
                 fileName));
 
-    const transformed = transform(file, typesFile, fileRelativePath);
-    await dependencies.writeFile(
-        transformed.file.fileName,
-        printer.printFile(transformed.file));
-
-    const f = crateType(new LazyDictionary<AliasedType>(), transformed.file, fileRelativePath);
-    function crtyp(expr: TypeExpression) {
-        const result = f(expr);
-        if (result instanceof LazyTypeReference) {
-            return result.getType();
-        }
-
-        return result;
-    }
-
-    const typeMap = transformed.typeKeys.map(tk => ({
-        key: tk.key,
-        value: crtyp(
-            resolveTypeForExpression(tk.value, transformed.file))
-    }));
-
-    const validateFile = generateValidateFile(typeMap, {strictNullChecks: true});
+    const filesAndTypes = generateFilesAndTypes(file, typesFile, fileRelativePath);
     const location = dependencies.joinPath(proj, tsValidatorFile);
+
+    await dependencies.writeFile(
+        filesAndTypes.transformedFile.fileName,
+        printer.printFile(filesAndTypes.transformedFile));
         
     await dependencies.writeFile(
         location,
-        validateFile.toString());
-}
-
-export {
-    execute
+        filesAndTypes.validateFile.toString());
 }

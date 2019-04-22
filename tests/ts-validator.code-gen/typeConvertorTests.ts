@@ -1,9 +1,8 @@
 import * as chai from 'chai';
 import * as ts from 'typescript';
 import * as types from 'ts-validator.core';
-import { tsquery } from '@phenomnomnominal/tsquery';
 import * as _ from 'lodash';
-import { convertType } from '../../ts-validator.code-gen/src/typeConvertor';
+import { scenario } from '../utils';
 
 chai.should();
 
@@ -21,58 +20,36 @@ describe("typeConvertor", function () {
         if (recurse) node.getChildren().map(x => print(x, recurse, level + 1));
     }
 
-    function createFile(text: string) {
-        return ts.createSourceFile(
-            'testFile.ts', text, ts.ScriptTarget.ES2015, true, ts.ScriptKind.TS
-        );
-    }
-
-    function resolveType(code: string, typeName: string) {
-        const file = createFile(code + "\nvar t: " + typeName + ";");
-        const variableTypes = tsquery<ts.VariableDeclaration>(file, "VariableDeclaration");
-        if (!variableTypes.length) {
-            print(file);
-            throw new Error("Could not find variable.");
-        }
-
-        let type = convertType(variableTypes[variableTypes.length - 1].type as ts.TypeNode, file, "testFile.ts");
-        if (!type) {
-            print(file);
-            throw new Error("Could not resolve type.");
-        }
-        
-        return { type, file };
-    }
-
     function resolveAliasedType(code: string, typeName: string, testSerializer = true) {
 
-        let { type, file } = resolveType(code, typeName);
+        const { type, file } = scenario("t", { validateSetup: code + "\nvar t: " + typeName + ";" });
+        let t = type();
 
-        if (!(type instanceof types.AliasedType)) {
+        if (!(t instanceof types.AliasedType)) {
             print(file);
-            console.error(type);
+            console.error(t);
             throw new Error(`Error defining code. Expected TypeWithProperties or AliasedType`);
         }
 
-        if (type.name !== typeName) {
+        if (t.name !== typeName) {
             print(file);
-            throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${type.name}`);
+            throw new Error(`Error defining code. Expected name: ${typeName}, actual name: ${t.name}`);
         }
 
         if (testSerializer) {
 
-            const ser = JSON.parse(JSON.stringify(types.serialize([type])));
-            const t = _(types.deserialize(ser).enumerate())
+            const ser = JSON.parse(JSON.stringify(types.serialize([t])));
+            const tp = _(types.deserialize(ser).enumerate())
                 .filter(x => x.value.name === typeName)
                 .map(x => x.value)
                 .first();
 
-            if (!t) throw Error(`Could not find type: ${typeName} in deserialized values.`);
+            if (!tp) throw Error(`Could not find type: ${typeName} in deserialized values.`);
 
-            type = t;
+            t = tp;
         }
 
-        return type;
+        return t;
     }
 
     function runForDeclaration(classOrInterface: string, name: string) {
@@ -216,12 +193,12 @@ describe("typeConvertor", function () {
             type.name.should.equal("MyT");
 
             // testFile.ts:MyT,31-46
-            type.id.should.equal("709P7q+uNBkf");
+            type.id.should.equal("Y7j6WEOKCxz6");
             
             ((type as types.AliasedType).aliases as types.LazyTypeReference).getType().name.should.equal("MyI");
 
             // testFile.ts:MyI,0-31
-            ((type as types.AliasedType).aliases as types.LazyTypeReference).id.should.equal("Qh3DBbzWC2jU");
+            ((type as types.AliasedType).aliases as types.LazyTypeReference).id.should.equal("wBJ+5ziA6WYv");
         });
     });
 
@@ -420,30 +397,42 @@ describe("typeConvertor", function () {
             
             (type.aliases as types.ArrayType).type.should.be.instanceof(types.MultiType);
         });
+
+        it("should construct array as part of complex object", () => {
+            const type = resolveAliasedType(`type T1 = ({val: number} | boolean)[]`, "T1") as types.AliasedType;
+
+            type.name.should.be.eq("T1");
+            type.should.be.instanceof(types.AliasedType);
+            type.aliases.should.be.instanceof(types.ArrayType);
+            
+            (type.aliases as types.ArrayType).type.should.be.instanceof(types.MultiType);
+        });
     });
     
     describe("anonymous types", () => {
 
         it("should construct type keyword type properly", () => {
-            resolveType(``, "string").type.should.eq(types.PropertyKeyword.string)
+            scenario("t", { validateSetup: "var t: string;" }).type().should.eq(types.PropertyKeyword.string)
         });
 
         it("should construct type array type properly", () => {
-            const result = resolveType(``, "string[]");
-            result.type.should.be.instanceof(types.ArrayType);
-            (result.type as types.ArrayType).type.should.eq(types.PropertyKeyword.string)
+            const result = scenario("t", { validateSetup: "var t: string[];" }).type();
+            result.should.be.instanceof(types.ArrayType);
+            (result as types.ArrayType).type.should.eq(types.PropertyKeyword.string)
 
         });
 
         it("should construct anonymous type properly", () => {
-            const result = resolveType(``, "{val: string, val2: {val3: boolean}}").type;
+            const result = scenario("t", { validateSetup: "var t: {val: string, val2: {val3: boolean[]}};" }).type();
             result.should.be.instanceof(types.Properties);
             (result as types.Properties).properties[0].name.should.be.eq("val");
             (result as types.Properties).properties[0].type.should.be.eq(types.PropertyKeyword.string);
             (result as types.Properties).properties[1].name.should.be.eq("val2");
             (result as types.Properties).properties[1].type.should.be.instanceof(types.Properties);
-            ((result as types.Properties).properties[1].type as types.Properties).properties[0].name.should.be.eq("val3");
-            ((result as types.Properties).properties[1].type as types.Properties).properties[0].type.should.be.eq(types.PropertyKeyword.boolean);
+
+            const arr = ((result as types.Properties).properties[1].type as types.Properties).properties[0];
+            arr.name.should.be.eq("val3");
+            (arr.type as types.ArrayType).type.should.be.eq(types.PropertyKeyword.boolean);
         });
     });
 });
