@@ -53,6 +53,26 @@ validate(x);`);
                 explicit(result);
             });
             
+            it("as", () => {
+                const file = createFile(`import { validate } from 'ts-validator.validator';
+${setup}
+let x = (null as unknown) as ${type};
+validate(x);`);
+                const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+                const result = resolveTypeForExpression(arg, file);
+                explicit(result);
+            });
+            
+            it("cast", () => {
+                const file = createFile(`import { validate } from 'ts-validator.validator';
+${setup}
+let x = <${type}>(null as unknown);
+validate(x);`);
+                const arg = transform(file, "tyLoc", "testFile.ts").typeKeys[0].value;
+                const result = resolveTypeForExpression(arg, file);
+                explicit(result);
+            });
+            
             it("implicit", () => {
                 const file = createFile(`import { validate } from 'ts-validator.validator';
 ${setup}

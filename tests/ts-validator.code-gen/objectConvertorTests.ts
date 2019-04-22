@@ -5,6 +5,7 @@ import { tsquery } from '@phenomnomnominal/tsquery';
 import * as _ from 'lodash';
 import { resolveObject } from '../../ts-validator.code-gen/src/objectConvertor';
 import { UnknownExpression } from '../../ts-validator.code-gen/src/expressionTypeResolver';
+import { PropertyType, PropertyKeyword } from 'ts-validator.core';
 
 chai.should();
 
@@ -28,7 +29,11 @@ describe("objectConvertor", function () {
         );
     }
 
-    function resolve(code: string) {
+    function resolve(code: string, resolveType?: (type: ts.TypeNode) => PropertyType) {
+
+        if (!resolveType) {
+            resolveType = () => { throw new Error("You must specify a type resolver") };
+        }
 
         const file = createFile("var t = " + code + ";");
         const obj = tsquery<ts.VariableDeclaration>(file, "VariableDeclaration");
@@ -44,10 +49,10 @@ describe("objectConvertor", function () {
         }
 
         if (ts.isObjectLiteralExpression(init) || ts.isArrayLiteralExpression(init)) {
-            return resolveObject(init, file);
+            return resolveObject(init, file)(resolveType);
         }
 
-        return resolveObject(new UnknownExpression(init.kind), file);
+        return resolveObject(new UnknownExpression(init.kind), file)(resolveType);
     }
 
     describe("literals", () => {
@@ -60,10 +65,27 @@ describe("objectConvertor", function () {
         it("should resolve true", () => resolve("true").should.eq(types.PropertyKeyword.boolean));
         it("should resolve false", () => resolve("false").should.eq(types.PropertyKeyword.boolean));
         it("should resolve null", () => resolve("null").should.eq(types.PropertyKeyword.null));
-        it("should resolve undefined", () => resolveObject(new UnknownExpression(ts.SyntaxKind.UndefinedKeyword), null as any).should.eq(types.PropertyKeyword.undefined));
+        it("should resolve undefined", () => resolveObject(new UnknownExpression(ts.SyntaxKind.UndefinedKeyword), null as any)(null as any).should.eq(types.PropertyKeyword.undefined));
     });
 
     describe("objects", () => {
+        
+        it("should resolve oject with cast 1", (done) => {
+            resolve("{ x: 4 as any }", (result => {
+                result.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
+                done();
+                return PropertyKeyword.string;
+            }));
+        });
+        
+        it("should resolve oject with cast 2", (done) => {
+            resolve("{ x: <any>4 }", (result => {
+                result.kind.should.be.eq(ts.SyntaxKind.AnyKeyword);
+                done();
+                return PropertyKeyword.string;
+            }));
+        });
+        
         it("should resolve oject with properties", () => {
             const result = resolve("{val: 6, \"val2\": null}") as types.Properties;
             result.properties.length.should.eq(2);

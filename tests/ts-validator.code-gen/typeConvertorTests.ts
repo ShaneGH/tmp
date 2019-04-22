@@ -418,29 +418,28 @@ describe("typeConvertor", function () {
         });
     });
     
-    // // https://github.com/ShaneGH/ts-validator/issues/37
-    // describe("anonymous types", () => {
+    describe("anonymous types", () => {
 
-    //     it("should construct type keyword type properly", () => {
-    //         resolveType(``, "string").type.should.eq(types.PropertyKeyword.string)
-    //     });
+        it("should construct type keyword type properly", () => {
+            resolveType(``, "string").type.should.eq(types.PropertyKeyword.string)
+        });
 
-    //     it("should construct type array type properly", () => {
-    //         const result = resolveType(``, "string[]");
-    //         result.should.be.instanceof(types.ArrayType);
-    //         (result as types.ArrayType).type.should.eq(types.PropertyKeyword.string)
+        it("should construct type array type properly", () => {
+            const result = resolveType(``, "string[]");
+            result.type.should.be.instanceof(types.ArrayType);
+            (result.type as types.ArrayType).type.should.eq(types.PropertyKeyword.string)
 
-    //     });
+        });
 
-    //     it("should construct anonymous type properly", () => {
-    //         const result = resolveType(``, "{val: string, val2: {val3: boolean}}").type;
-    //         result.should.be.instanceof(types.Properties);
-    //         (result as types.Properties).properties[0].name.should.be.eq("val");
-    //         (result as types.Properties).properties[0].type.should.be.eq(types.PropertyKeyword.string);
-    //         (result as types.Properties).properties[1].name.should.be.eq("val2");
-    //         (result as types.Properties).properties[0].type.should.be.instanceof(types.Properties);
-    //     });
-        
-    //     // ALSO do one with array and complex object
-    // });
+        it("should construct anonymous type properly", () => {
+            const result = resolveType(``, "{val: string, val2: {val3: boolean}}").type;
+            result.should.be.instanceof(types.Properties);
+            (result as types.Properties).properties[0].name.should.be.eq("val");
+            (result as types.Properties).properties[0].type.should.be.eq(types.PropertyKeyword.string);
+            (result as types.Properties).properties[1].name.should.be.eq("val2");
+            (result as types.Properties).properties[1].type.should.be.instanceof(types.Properties);
+            ((result as types.Properties).properties[1].type as types.Properties).properties[0].name.should.be.eq("val3");
+            ((result as types.Properties).properties[1].type as types.Properties).properties[0].type.should.be.eq(types.PropertyKeyword.boolean);
+        });
+    });
 });

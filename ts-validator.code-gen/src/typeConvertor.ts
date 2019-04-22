@@ -217,9 +217,9 @@ propertyKeywords[ts.SyntaxKind.NeverKeyword] = PropertyKeyword.never;
 propertyKeywords[ts.SyntaxKind.UnknownKeyword] = PropertyKeyword.unknown;
 propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
 
-function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState) {
+function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState): PropertyType | null {
 
-    if (ts.isParenthesizedTypeNode(type)) {
+    while (ts.isParenthesizedTypeNode(type)) {
         type = type.type;
     }
 
@@ -233,6 +233,11 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState)
 
     if (ts.isTypeLiteralNode(type)) {
         return new Properties(getProperties(type, state));
+    }
+
+    if (ts.isArrayTypeNode(type)) {
+        return new ArrayType(
+            resolveTypeOrThrow(type.elementType, state));
     }
     
     let name: ts.EntityName;

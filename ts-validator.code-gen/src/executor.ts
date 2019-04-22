@@ -2,7 +2,7 @@ import { transform } from './fileTransformer'
 import * as ts from 'typescript'
 import * as _ from 'lodash';
 import { validatorModuleName } from './const';
-import { AliasedType, LazyDictionary, PropertyKeyword, LazyTypeReference } from 'ts-validator.core';
+import { AliasedType, LazyDictionary, LazyTypeReference } from 'ts-validator.core';
 import { convertType } from './typeConvertor';
 import { resolveObject } from './objectConvertor';
 import { resolveTypeForExpression, TypeExpression, UnknownExpression } from './expressionTypeResolver';
@@ -21,13 +21,26 @@ type ExecuteDependencies = {
 }
 
 function crateType(state: LazyDictionary<AliasedType>, file: ts.SourceFile, fileRelativePath: string) {
+    function convertTypeOrThrow(type: ts.TypeNode) {
+        const r = convertType(type, file, fileRelativePath);
+        if (!r) {
+            throw new Error(`Cannot resolve type for : ${type.getText(file)}`);
+        }
+
+        if (r instanceof AliasedType) {
+            return new LazyTypeReference(r.id, () => r);
+        }
+
+        return r;
+    }
+
     return function (expr: TypeExpression) {
         if (expr instanceof UnknownExpression) {
-            return resolveObject(expr, file);
+            return resolveObject(expr, file)(convertTypeOrThrow);
         }
 
         if (ts.isObjectLiteralExpression(expr) || ts.isArrayLiteralExpression(expr)) {
-            return resolveObject(expr, file);
+            return resolveObject(expr, file)(convertTypeOrThrow);
         }
 
         const result = convertType(expr, file, fileRelativePath, state);
