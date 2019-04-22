@@ -214,10 +214,14 @@ describe("typeConvertor", function () {
 
         it("should parse correct type and property length", () => {
             type.name.should.equal("MyT");
-            type.id.should.equal("31-46, testFile.ts");
+
+            // testFile.ts:MyT,31-46
+            type.id.should.equal("709P7q+uNBkf");
             
             ((type as types.AliasedType).aliases as types.LazyTypeReference).getType().name.should.equal("MyI");
-            ((type as types.AliasedType).aliases as types.LazyTypeReference).id.should.equal("0-31, testFile.ts");
+
+            // testFile.ts:MyI,0-31
+            ((type as types.AliasedType).aliases as types.LazyTypeReference).id.should.equal("Qh3DBbzWC2jU");
         });
     });
 

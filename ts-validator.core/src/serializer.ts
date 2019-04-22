@@ -3,8 +3,8 @@ import { LazyDictionary } from "./lazyDictionary";
 
 let kindBuilder = 0;
 type WrapperKind<T> = {
-    __kind: number
-    value: T
+    k: number
+    v: T
 }
 
 function buildWrapperType<T>() {
@@ -13,13 +13,13 @@ function buildWrapperType<T>() {
     return {
         build: function (value: T): WrapperKind<T> {
             return {
-                __kind: kind,
-                value: value
+                k: kind,
+                v: value
             };
         },
 
         is: function (value: WrapperKind<any>): value is WrapperKind<T> {
-            return value && value.__kind === kind;
+            return value && value.k === kind;
         }
     }
 };
@@ -28,28 +28,36 @@ const arrayS = buildWrapperType<WrapperKind<any>>();
 
 const aliasS = buildWrapperType<AliasTypeS>();
 type AliasTypeS = {
+    /** id */
     id: string,
-    name: string,
-    aliased: WrapperKind<any>
+    /** name */
+    n: string,
+    /** aliased */
+    a: WrapperKind<any>
 }
 
 const propertyS = buildWrapperType<PropertyS>();
 type PropertyS = {
-    name: string,
-    type: WrapperKind<any>
+    /** name */
+    n: string,
+    /** type */
+    t: WrapperKind<any>
 }
 
 const propertiesS = buildWrapperType<PropertiesS>();
 type PropertiesS = {
-    properties: PropertyS[]
+    /** properties */
+    p: PropertyS[]
 }
 
 const propertyKeywordS = buildWrapperType<string>();
 
 const MultiTypeS = buildWrapperType<MultiTypeS>();
 type MultiTypeS = {
-    types: WrapperKind<any>[],
-    combinator: MultiTypeCombinator
+    /** types */
+    t: WrapperKind<any>[],
+    /** combinator */
+    c: MultiTypeCombinator
 }
 
 const lazyTypeReferenceS = buildWrapperType<string>();
@@ -61,8 +69,8 @@ function serialize(value: AliasedType[]) {
 
         function serProperty(p: Property) {
             return {
-                name: p.name,
-                type: serializeSingle(p.type)
+                n: p.name,
+                t: serializeSingle(p.type)
             };
         }
 
@@ -76,7 +84,7 @@ function serialize(value: AliasedType[]) {
         
         if (value instanceof Properties) {
             return propertiesS.build({
-                properties: value.properties.map(serProperty)
+                p: value.properties.map(serProperty)
             });
         }
         
@@ -86,8 +94,8 @@ function serialize(value: AliasedType[]) {
         
         if (value instanceof MultiType) {
             return MultiTypeS.build({
-                combinator: value.combinator,
-                types: value.types.map(serializeSingle)
+                c: value.combinator,
+                t: value.types.map(serializeSingle)
             });
         }
         
@@ -106,8 +114,8 @@ function serialize(value: AliasedType[]) {
         
         result.tryAdd(value.id, () => aliasS.build({
             id: value.id,
-            name: value.name,
-            aliased: serializeSingle(value.aliases)
+            n: value.name,
+            a: serializeSingle(value.aliases)
         }))();    // evaluate to serialize any nested types
     }
         
@@ -121,40 +129,40 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
 
         function dserProperty(p: PropertyS) {
             return new Property(
-                p.name,
-                deserializeSingle(p.type));
+                p.n,
+                deserializeSingle(p.t));
         }
 
         if (arrayS.is(value)) {
             return new ArrayType(
-                deserializeSingle(value.value));
+                deserializeSingle(value.v));
         }
         
         if (propertyS.is(value)) {
-            return dserProperty(value.value);
+            return dserProperty(value.v);
         }
         
         if (propertiesS.is(value)) {
             return new Properties(
-                value.value.properties.map(dserProperty));
+                value.v.p.map(dserProperty));
         }
         
         if (propertyKeywordS.is(value)) {
-            const val = (PropertyKeyword as any)[value.value];
+            const val = (PropertyKeyword as any)[value.v];
             if (!(val instanceof PropertyKeyword))
-                throw new Error(`Invalid property keyword: ${value.value}`);
+                throw new Error(`Invalid property keyword: ${value.v}`);
             
             return val;
         }
         
         if (MultiTypeS.is(value)) {
             return new MultiType(
-                value.value.types.map(deserializeSingle),
-                value.value.combinator);
+                value.v.t.map(deserializeSingle),
+                value.v.c);
         }
         
         if (lazyTypeReferenceS.is(value)) {
-            return new LazyTypeReference(value.value, result.getLazy(value.value));
+            return new LazyTypeReference(value.v, result.getLazy(value.v));
         }
         
         // TODO: message
@@ -164,8 +172,8 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
     function deserializeFirst(value: WrapperKind<any>) {
         if (aliasS.is(value)) {
             result.tryAdd(
-                value.value.id, 
-                () => new AliasedType(value.value.id, value.value.name, deserializeSingle(value.value.aliased)));
+                value.v.id, 
+                () => new AliasedType(value.v.id, value.v.n, deserializeSingle(value.v.a)));
 
             return;
         }

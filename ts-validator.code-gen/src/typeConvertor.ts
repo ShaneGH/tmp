@@ -1,6 +1,13 @@
 import * as ts from 'typescript';
 import { visitNodesInScope } from './utils/astUtils';
 import { LazyDictionary, AliasedType, Property, Properties, MultiType, MultiTypeCombinator, PropertyType, LazyTypeReference, PropertyKeyword, Type, ArrayType } from 'ts-validator.core';
+import * as crypto from "crypto";
+
+function sha1(input: string) {
+    const shasum = crypto.createHash('sha1');
+    shasum.update(input);
+    return shasum.digest('base64');
+}
 
 class ResolveTypeState {
     
@@ -10,8 +17,8 @@ class ResolveTypeState {
         this.results = dictionary || new LazyDictionary<AliasedType>();
     }
 
-    buildKey(key: ts.Node) {
-        return `${key.pos}-${key.end}, ${this._fileRelativePath}`;
+    buildKey(key: ts.Node, name: string) {
+        return sha1(`${this._fileRelativePath}:${name},${key.pos}-${key.end}`).substr(0, 12);
     }
 }
 
@@ -93,7 +100,7 @@ function buildExtends (extendsNames: ts.Identifier[], state: ResolveTypeState): 
 
 function buildClasssOrInterfaceType(name: string, node: ts.InterfaceDeclaration | ts.ClassDeclaration, state: ResolveTypeState): LazyTypeReference {
         
-    const id = state.buildKey(node);
+    const id = state.buildKey(node, name);
     const result = state.results.tryAdd(id, function (): AliasedType {
 
         const extendsInterfaces: ts.Identifier[] = [];
@@ -168,7 +175,7 @@ function buildMultiTypeOrThrow(node: ts.UnionOrIntersectionTypeNode, state: Reso
 
 function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: ResolveTypeState) {
 
-    const id = state.buildKey(node);
+    const id = state.buildKey(node, name);
     const type = ts.isParenthesizedTypeNode(node.type)
         ? node.type.type
         : node.type;
