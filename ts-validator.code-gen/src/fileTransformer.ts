@@ -17,11 +17,6 @@ function print(node: ts.Node, recurse = true, level = 0) {
     if (recurse) node.getChildren().map(x => print(x, recurse, level + 1));
 }
 
-type TransformOutput = {
-    file: ts.SourceFile,
-    typeKeys: TypeKeys
-}
-
 class ImportGroupNode {
     children: ImportGroupNode[] = [];
 
@@ -201,7 +196,7 @@ function getValidateFunctionNodes(importGroups: ImportGroupNode, file: ts.Source
 }
 
 type CallKeys = {[k: string]: ts.CallExpression}
-type TypeKeys = {key: string, value: ts.Expression}[]
+type TypeKeys = {key: string, value: ts.Expression | ts.TypeNode}[]
 const buildTransformer = 
     (validateCalls: ts.CallExpression[], keys: CallKeys, relativePath: string, file: ts.SourceFile) => 
     <T extends ts.Node>(context: ts.TransformationContext) => 
@@ -322,11 +317,20 @@ function addCallInit(file: ts.SourceFile) {
 }
 
 function getValidationType(node: ts.CallExpression, file: ts.SourceFile) {
+    if (node.typeArguments && node.typeArguments.length) {
+        return node.typeArguments[0];
+    }
+
     if (!node.arguments || !node.arguments.length) {
         throw new Error(`${node.getText(file)} is not a call to ${functionName}(...).`);
     }
     
     return node.arguments[0];
+}
+
+type TransformOutput = {
+    file: ts.SourceFile,
+    typeKeys: TypeKeys
 }
 
 function transform(file: ts.SourceFile, relativePathToTypes: string, relativeFilePath: string): TransformOutput {

@@ -5,15 +5,16 @@
 export class PropertyKeyword {
     private constructor(public keyword: string, public validate: (x: any) => boolean) {}
 
-    static string = new PropertyKeyword("string", x => typeof x === "string") 
+    static string = new PropertyKeyword("string", x => typeof x === "string")
+    static object = new PropertyKeyword("object", x => typeof x === "object") 
     static number = new PropertyKeyword("number", x => typeof x === "number") 
     static boolean = new PropertyKeyword("boolean", x => typeof x === "boolean") 
-    static any = new PropertyKeyword("any", x => true) 
+    static any = new PropertyKeyword("any", () => true) 
     static null = new PropertyKeyword("null", x => x === null) 
     static undefined = new PropertyKeyword("undefined", x => x === undefined) 
-    static unknown = new PropertyKeyword("unknown", x => { throw new Error('"unknown" is not a valid type'); }) 
-    static never = new PropertyKeyword("never", x => false) 
-    static void = new PropertyKeyword("void", x => { throw new Error('"void" is not a valid type'); })
+    static unknown = new PropertyKeyword("unknown", () => { throw new Error('"unknown" is not a valid type'); }) 
+    static never = new PropertyKeyword("never", () => false) 
+    static void = new PropertyKeyword("void", () => { throw new Error('"void" is not a valid type'); })
 
     static value(key: string) {
         const result: PropertyKeyword = (PropertyKeyword as any)[key];

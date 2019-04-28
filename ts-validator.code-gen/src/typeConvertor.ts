@@ -203,6 +203,7 @@ propertyKeywords[ts.SyntaxKind.AnyKeyword] = PropertyKeyword.any;
 propertyKeywords[ts.SyntaxKind.NeverKeyword] = PropertyKeyword.never;
 propertyKeywords[ts.SyntaxKind.UnknownKeyword] = PropertyKeyword.unknown;
 propertyKeywords[ts.SyntaxKind.VoidKeyword] = PropertyKeyword.void;
+propertyKeywords[ts.SyntaxKind.ObjectKeyword] = PropertyKeyword.object;
 
 function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState): PropertyType | null {
 

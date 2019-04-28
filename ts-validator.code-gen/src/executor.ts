@@ -69,7 +69,9 @@ export function generateFilesAndTypes (file: ts.SourceFile, typesFileName: strin
     const typeMap = transformed.typeKeys.map(tk => ({
         key: tk.key,
         value: crtyp(
-            resolveTypeForExpression(tk.value, transformed.file))
+            ts.isTypeNode(tk.value)
+                ? tk.value
+                : resolveTypeForExpression(tk.value, transformed.file))
     }));
 
     const validateFile = generateValidateFile(typeMap, {strictNullChecks: true});

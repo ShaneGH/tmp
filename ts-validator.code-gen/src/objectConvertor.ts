@@ -1,9 +1,7 @@
 import * as ts from "typescript"
 import { PropertyKeyword, Properties, Property, PropertyType, ArrayType, MultiType, MultiTypeCombinator, Type } from "ts-validator.core"
 import { UnknownExpression } from "./expressionTypeResolver";
-import { convertType } from "./typeConvertor";
 
-// TODO: this is a copy paste of values in expressionTypeResolver
 const propertyKeywords: {[key: number]: PropertyKeyword} = {};
 propertyKeywords[ts.SyntaxKind.StringLiteral] = PropertyKeyword.string;
 propertyKeywords[ts.SyntaxKind.NumericLiteral] = PropertyKeyword.number;

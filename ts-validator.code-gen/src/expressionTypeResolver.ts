@@ -1,6 +1,5 @@
 import * as ts from 'typescript';
 import { visitNodesInScope } from './utils/astUtils';
-import { PropertyKeyword } from 'ts-validator.core';
 
 
 function pad(text: string, pad: number) {
