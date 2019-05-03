@@ -41,7 +41,9 @@ type PropertyS = {
     /** name */
     n: string,
     /** type */
-    t: WrapperKind<any>
+    t: WrapperKind<any>,
+    /** optional */
+    o: boolean
 }
 
 const propertiesS = buildWrapperType<PropertiesS>();
@@ -70,7 +72,8 @@ function serialize(value: AliasedType[]) {
         function serProperty(p: Property) {
             return {
                 n: p.name,
-                t: serializeSingle(p.type)
+                t: serializeSingle(p.type),
+                o: p.optional
             };
         }
 
@@ -130,7 +133,8 @@ function deserialize(values: {[key: string]: WrapperKind<any>}) {
         function dserProperty(p: PropertyS) {
             return new Property(
                 p.n,
-                deserializeSingle(p.t));
+                deserializeSingle(p.t),
+                p.o);
         }
 
         if (arrayS.is(value)) {

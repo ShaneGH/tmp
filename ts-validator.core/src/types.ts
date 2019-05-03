@@ -36,11 +36,13 @@ export enum MultiTypeCombinator {
 } 
 
 export class Property {
-    constructor (public name: string, public type: PropertyType) {}
+    constructor (public name: string, public type: PropertyType, public optional: boolean) {}
 
     equals(other: any): boolean {
         if (!(other instanceof Property)) return false;
-        return other.name === this.name && this.type.equals(other.type);
+        return other.name === this.name 
+            && other.optional === this.optional 
+            && this.type.equals(other.type);
     }
 }
 

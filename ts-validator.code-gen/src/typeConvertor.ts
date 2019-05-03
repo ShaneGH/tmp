@@ -47,7 +47,8 @@ function getProperty(node: ts.PropertySignature | ts.PropertyDeclaration, state:
 
     return new Property(
         name,
-        resolveTypeOrThrow(node.type, state));
+        resolveTypeOrThrow(node.type, state),
+        !!node.questionToken);
 }
 
 function getProperties(node: ts.InterfaceDeclaration | ts.ClassDeclaration | ts.TypeLiteralNode, state: ResolveTypeState): Property[] {

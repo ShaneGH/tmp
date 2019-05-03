@@ -60,6 +60,10 @@ function validateProperty(value: any, propertyType: PropertyType, compilerArgs: 
         return propertyType.properties
             .map(x => {
                 const pv = value[x.name];
+                if (pv == null && x.optional) {
+                    return [];
+                }
+                
                 return validateProperty(pv, x.type, compilerArgs)
                     .map(err => ({
                         ...err,
@@ -94,7 +98,11 @@ function validate(subject: any, type: PropertyType | AliasedType, compilerArgs: 
         type = type.aliases;
     }
 
-    return validateProperty(subject, type, compilerArgs);
+    return validateProperty(subject, type, compilerArgs)
+        .map(x => ({
+            ...x,
+            property: "value" + x.property
+        }));
 }
 
 export {

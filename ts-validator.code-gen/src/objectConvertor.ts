@@ -80,7 +80,7 @@ function resolveObject(expr: ts.ObjectLiteralExpression, file: ts.SourceFile): (
 
                 if (name === null) throw new Error(`Cannot resolve name for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);
 
-                return new Property(name, resolveExpression(p.initializer, file)(resolveType));
+                return new Property(name, resolveExpression(p.initializer, file)(resolveType), false);
             }
 
             throw new Error(`Cannot resolve type for property, ${ts.SyntaxKind[p.kind]}: ${p.getFullText(file)}`);

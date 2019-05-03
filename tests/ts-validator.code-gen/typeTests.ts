@@ -25,11 +25,19 @@ describe("Type literals", function () {
         invalidTest: {x: 7}
     }));
 
-    describe("object with convert 1", () => fullScenario({
+    describe("object with convert 2", () => fullScenario({
         valueCode: '{x: <string>5}',
         typeDefCode: '{x: string}',
         validTest: {x: "hi"},
         invalidTest: {x: 7}
+    }));
+
+    describe("object with optional value", () => fullScenario({
+        valueCode: '{x: 5}',
+        typeDefCode: '{x?: number}',
+        validTest: new ArrayValidator({x: 5}, {}),
+        invalidTest: {x: "hi"},
+        shouldValidate: x => x != ValidationScenarios.direct && x != ValidationScenarios.variable
     }));
 
     describe("object with array", () => fullScenario({
