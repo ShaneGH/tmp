@@ -10,7 +10,7 @@ describe("Variable without type", function () {
         validateSetup: `var t;`
     });
 
-    it("should still validate", () => sc.validate({}).should.eq(true));
+    it("should still validate", () => sc.validate({}).length.should.eq(0));
 });
 
 describe("Function arg without type", function () {
@@ -20,7 +20,7 @@ describe("Function arg without type", function () {
         validateTeardown: "}"
     });
 
-    it("should still validate", () => sc.validate({}).should.eq(true));
+    it("should still validate", () => sc.validate({}).length.should.eq(0));
 });
 
 describe("Lambda arg without type", function () {
@@ -30,5 +30,5 @@ describe("Lambda arg without type", function () {
         validateTeardown: "}"
     });
 
-    it("should still validate", () => sc.validate({}).should.eq(true));
+    it("should still validate", () => sc.validate({}).length.should.eq(0));
 });

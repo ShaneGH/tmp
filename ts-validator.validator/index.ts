@@ -17,7 +17,7 @@ function init(keyMap: {[k: string]: string}, types: {[k: string]: WrapperKind<an
 	_compilerArgs = compilerArgs;
 }
 
-function validate<T>(subject: T, key?: string): boolean {
+function validate<T>(subject: T, key?: string) {
     if (arguments.length < 2) {
         throw new Error("This function should have been replaced with a different validation function. Do you need to re-compile your ts code?");
     }
@@ -40,7 +40,11 @@ function validate<T>(subject: T, key?: string): boolean {
 		throw new Error(`Could not find type for validation key ${key}, type key ${map}. Do you need to re-compile your ts code?`);
 	}
 
-	return validateType(subject, type(), _compilerArgs);
+	const errors = validateType(subject, type(), _compilerArgs);
+	return {
+		success: errors.length == 0,
+		errors
+	};
 }
 
 export {

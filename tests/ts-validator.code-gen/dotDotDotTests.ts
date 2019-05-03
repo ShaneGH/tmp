@@ -11,6 +11,6 @@ describe("...args[]", function () {
         validateTeardown: "}"
     });
 
-    it("should validate correct array", () => sc.validate([5]).should.eq(true));
-    it("should validate incorrect array", () => sc.validate([""]).should.eq(false));
+    it("should validate correct array", () => sc.validate([5]).length.should.eq(0));
+    it("should validate incorrect array", () => sc.validate([""]).length.should.not.eq(0));
 });

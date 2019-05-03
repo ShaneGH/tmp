@@ -1,6 +1,6 @@
 import * as ts from 'typescript';
 import * as chai from 'chai';
-import { validate } from '../ts-validator.validator/src/validate';
+import { validate as validate, Err } from '../ts-validator.validator/src/validate';
 import { generateFilesAndTypes } from '../ts-validator.code-gen/src/executor';
 import { CodeWriter } from '../ts-validator.code-gen/src/clientSideValidator';
 import { CompilerArgs, serialize, Type } from 'ts-validator.core';
@@ -106,7 +106,7 @@ export function fullScenario(args: FullScenarioArgs) {
 
     type X = {
         file: ts.SourceFile,
-        validate: (subject: any, args?: ValidateArgs) => boolean,
+        validate: (subject: any, args?: ValidateArgs) => Err[],
         typeMap: {key: string, value: Type}[],
         type: (index?: number) => Type,
     }
@@ -120,14 +120,12 @@ export function fullScenario(args: FullScenarioArgs) {
 
             validTest.forEach(valid => 
                 it("should validate correct object", () => {
-                    try {
-                        result.validate(valid).should.be.eq(true);
-                    } catch (e) {
-                        console.error("Validating type:");
-                        console.error(result.type());
-                        console.error(printer.printFile(result.file));
-                        throw e;
-                    }
+                    const errs = result.validate(valid);
+                    if (errs.length !== 0) throw {
+                        file: printer.printFile(result.file),
+                        type: result.type(),
+                        errs
+                    };
                 }));
         }
          
@@ -138,14 +136,12 @@ export function fullScenario(args: FullScenarioArgs) {
 
             invalidTest.forEach(invalid =>
                 it("should not validate incorrect object", () => {
-                    try {
-                        result.validate(invalid).should.eq(false);
-                    } catch (e) {
-                        console.error("Validating type:");
-                        console.error(result.type());
-                        console.error(printer.printFile(result.file));
-                        throw e;
-                    }
+                    const errs = result.validate(invalid);
+                    if (errs.length === 0) throw {
+                        msg: "Expected invalid result",
+                        file: printer.printFile(result.file),
+                        type: result.type()
+                    };
                 }));
         }
     }
