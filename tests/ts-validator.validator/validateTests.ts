@@ -301,4 +301,36 @@ describe("validator", function () {
             validate(subject, t, buildCompilerArgs()).length.should.eq(0);
         });
     });
+    
+    describe("Error messages", () => {
+
+        const t = resolveType(`type T1 = { x: { y: {"the z": string }[] } }`, "T1");
+        it(`should not fail for control`, () => {
+            validate({ x: { y: [{"the z": "hello" }] } }, t, buildCompilerArgs()).length.should.eq(0);
+        });
+        
+        it(`format error correctly for complex name and array element`, () => {
+            const errs = validate({ x: { y: [{"the z": "hello" }, {}] } }, t, buildCompilerArgs());
+            errs.length.should.eq(1);
+            errs[0].property.should.eq('$value.x.y[1]["the z"]');
+        });
+        
+        it(`format error correctly for simpler element`, () => {
+            const errs = validate({ x: { y: "hi" } }, t, buildCompilerArgs());
+            errs.length.should.eq(1);
+            errs[0].property.should.eq('$value.x.y');
+        });
+    });
+    
+    describe("validation behavior", () => {
+
+        const t = resolveType(`type T1 = { x: string, y: number }`, "T1");
+        it(`should not fail for control`, () => {
+            validate({ x: "hi", y: 9 }, t, buildCompilerArgs()).length.should.eq(0);
+        });
+        
+        it(`should continue validation after a failure`, () => {
+            validate({ }, t, buildCompilerArgs()).length.should.eq(2);
+        });
+    });
 });
