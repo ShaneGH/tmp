@@ -8,7 +8,7 @@ let
 	_compilerArgs: CompilerArgs = null as any;
 
 let initialized = false;
-function init(keyMap: {[k: string]: string}, types: {[k: string]: WrapperKind<any>}, compilerArgs: CompilerArgs) {
+export function init(keyMap: {[k: string]: string}, types: {[k: string]: WrapperKind<any>}, compilerArgs: CompilerArgs) {
 	if (initialized) return;
 	initialized = true;
 
@@ -17,7 +17,7 @@ function init(keyMap: {[k: string]: string}, types: {[k: string]: WrapperKind<an
 	_compilerArgs = compilerArgs;
 }
 
-function validate<T>(subject: T, key?: string) {
+export function validate<T>(subject: T, key?: string) {
     if (arguments.length < 2) {
         throw new Error("This function should have been replaced with a different validation function. Do you need to re-compile your ts code?");
     }
@@ -47,7 +47,7 @@ function validate<T>(subject: T, key?: string) {
 	};
 }
 
-export {
-	init,
-    validate
-}
+// https://github.com/ShaneGH/ts-validator/issues/44
+// export function is<T> (subject: any, key?: string): subject is T {
+// 	return validate(subject, key).success;
+// }
