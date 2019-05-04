@@ -2,10 +2,10 @@ import { transform } from './fileTransformer'
 import * as ts from 'typescript'
 import * as _ from 'lodash';
 import { validatorModuleName } from './const';
-import { AliasedType, LazyDictionary, LazyTypeReference } from 'ts-validator.core';
+import { AliasedType, LazyDictionary, LazyTypeReference, Type, MultiType, MultiTypeCombinator, PropertyKeyword } from 'ts-validator.core';
 import { convertType } from './typeConvertor';
 import { resolveObject } from './objectConvertor';
-import { resolveTypeForExpression, TypeExpression, UnknownExpression } from './expressionTypeResolver';
+import { resolveTypeForExpression, TypeExpression, UnknownExpression, TypeNode } from './expressionTypeResolver';
 import { generateValidateFile } from './clientSideValidator';
 
 const tsValidatorFile = validatorModuleName + "-types.ts";
@@ -18,6 +18,31 @@ type ExecuteDependencies = {
     joinPath: (...parts: string[]) => string
     convertToRelativePath: (pathFrom: string, pathTo: string) => string
     convertRelativePathToUnix: (path: string) => string
+}
+
+function makeTypeOptional(type: Type): Type {
+    if (type instanceof MultiType && type.combinator == MultiTypeCombinator.Union) {
+        if (type.types.indexOf(PropertyKeyword.null) === -1) {
+            type.types.push(PropertyKeyword.null);
+        }
+        
+        if (type.types.indexOf(PropertyKeyword.undefined) === -1) {
+            type.types.push(PropertyKeyword.undefined);
+        }
+
+        return type;
+    }
+
+    if (type instanceof AliasedType) {
+        const t = type;
+        return new MultiType([
+            new LazyTypeReference(t.id, () => t), 
+            PropertyKeyword.null, 
+            PropertyKeyword.undefined
+        ], MultiTypeCombinator.Union);
+    }
+
+    return new MultiType([type, PropertyKeyword.null, PropertyKeyword.undefined], MultiTypeCombinator.Union);
 }
 
 function crateType(state: LazyDictionary<AliasedType>, file: ts.SourceFile, fileRelativePath: string) {
@@ -34,12 +59,17 @@ function crateType(state: LazyDictionary<AliasedType>, file: ts.SourceFile, file
         return r;
     }
 
-    return function (expr: TypeExpression) {
+    return function (expr: TypeExpression | ts.TypeNode) {
+
         if (expr instanceof UnknownExpression) {
             return resolveObject(expr, file)(convertTypeOrThrow);
         }
-
-        if (ts.isObjectLiteralExpression(expr) || ts.isArrayLiteralExpression(expr)) {
+        
+        let optional = false;
+        if (expr instanceof TypeNode) {
+            optional = expr.optional;
+            expr = expr.node;
+        } else if (ts.isObjectLiteralExpression(expr) || ts.isArrayLiteralExpression(expr)) {
             return resolveObject(expr, file)(convertTypeOrThrow);
         }
 
@@ -47,8 +77,10 @@ function crateType(state: LazyDictionary<AliasedType>, file: ts.SourceFile, file
         if (!result) {
             throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
         }
-
-        return result;
+        
+        return optional
+            ? makeTypeOptional(result)
+            : result;
     }
 }
 
@@ -57,7 +89,8 @@ export function generateFilesAndTypes (file: ts.SourceFile, typesFileName: strin
     const transformed = transform(file, typesFileName, fileRelativePath);
 
     const f = crateType(new LazyDictionary<AliasedType>(), transformed.file, fileRelativePath);
-    function crtyp(expr: TypeExpression) {
+    function crtyp(expr: TypeExpression | ts.TypeNode) {
+
         const result = f(expr);
         if (result instanceof LazyTypeReference) {
             return result.getType();

@@ -71,7 +71,7 @@ function resolveForIdentifier(expr: ts.Identifier, file: ts.SourceFile) {
     }
 
     if (varDec.type) {
-        return varDec.type;
+        return new TypeNode(varDec.type, ts.isParameter(varDec) && varDec.questionToken != null);
     } else if (ts.isFunctionDeclaration(varDec) || ts.isArrowFunction(varDec)) {
         //TODO: not sure how to reach this condition
         throw new Error(`Cannot find type for variable: ${expr.getText(file)}`);
@@ -94,7 +94,7 @@ function resolveForCall(expr: ts.CallExpression, file: ts.SourceFile){
 
         if (ts.isFunctionDeclaration(varDec) || ts.isArrowFunction(varDec)) {
             if (varDec.type) {
-                return varDec.type;
+                return new TypeNode(varDec.type, false);
             }
                                 
             throw new Error(`Implicit function return values are not supported. Please specify the function return type explicitly: ${varDec.getFullText(file)}.`);
@@ -105,7 +105,7 @@ function resolveForCall(expr: ts.CallExpression, file: ts.SourceFile){
             while (ts.isParenthesizedTypeNode(type)) type = type.type;
 
             if (ts.isFunctionTypeNode(type)) {
-                return type.type;
+                return new TypeNode(type.type, false);
             }
         }
         
@@ -115,7 +115,7 @@ function resolveForCall(expr: ts.CallExpression, file: ts.SourceFile){
 
             if (ts.isFunctionExpression(initializer) || ts.isArrowFunction(initializer)) {
                 if (initializer.type) {
-                    return initializer.type;
+                    return new TypeNode(initializer.type, false);
                 }
                 
                 throw new Error(`Implicit function return values are not supported. Please specify the function return type explicitly: ${varDec.initializer.getFullText(file)}.`);
@@ -125,7 +125,7 @@ function resolveForCall(expr: ts.CallExpression, file: ts.SourceFile){
         throw new Error(`Expecting object ${ts.SyntaxKind[varDec.kind]}, ${varDec.getFullText(file)} to be a function or arrow function.`);
     } else if (ts.isFunctionExpression(expression) || ts.isArrowFunction(expression)) {
         if (expression.type) {
-            return expression.type;
+            return new TypeNode(expression.type, false);
         }
         
         throw new Error(`Implicit function return values are not supported. Please specify the function return type explicitly: ${expression.getFullText(file)}.`);
@@ -138,20 +138,27 @@ function resolveForCall(expr: ts.CallExpression, file: ts.SourceFile){
 function removeParentiesis(node: TypeExpression){
     if (node instanceof UnknownExpression) return node;
 
-    let nd: ts.Node = node;
-    while (ts.isParenthesizedTypeNode(nd)) nd = nd.type;
+    if (node instanceof TypeNode) {
+        let n = node;
+        while (ts.isParenthesizedTypeNode(n.node)) n.node = n.node.type;
+        return n;
+    }
 
-    return nd;
+    return node;
 }
 
 export class UnknownExpression {
-    constructor(public kind: ts.SyntaxKind) {}
+    constructor(public syntaxKind: ts.SyntaxKind) {}
+}
+
+export class TypeNode {
+    constructor(public node: ts.TypeNode, public optional: boolean) {}
 }
 
 type TypeExpression = 
     | ts.ObjectLiteralExpression 
     | ts.ArrayLiteralExpression
-    | ts.TypeNode
+    | TypeNode
     | UnknownExpression;
 
 function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile) : TypeExpression {
@@ -165,7 +172,7 @@ function resolveTypeForExpression(expr: ts.Expression, file: ts.SourceFile) : Ty
 
     if (ts.isAsExpression(expr) 
         || ts.isTypeAssertion(expr)) {
-        return removeParentiesis(expr.type);
+        return removeParentiesis(new TypeNode(expr.type, false));
     }
 
     if (ts.isObjectLiteralExpression(expr)

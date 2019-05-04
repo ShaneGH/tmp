@@ -24,7 +24,16 @@ type ValidateArgs = {
     compilerArgs?: CompilerArgs
 }
 
-export function scenario(validateCode: string, args?: ScenarioArgs) {
+type Scenario = {
+    file: ts.SourceFile,
+    validate: (subject: any, args?: ValidateArgs) => Err[],
+    typeMap: {key: string, value: Type}[],
+    type: (index?: number) => Type,
+    expectSuccess (subject: any, args?: ValidateArgs): void,
+    expectFailure (subject: any, args?: ValidateArgs) : void
+}
+
+export function scenario(validateCode: string, args?: ScenarioArgs): Scenario {
     args = args || {};
 
     const writer = new CodeWriter();
@@ -57,13 +66,32 @@ export function scenario(validateCode: string, args?: ScenarioArgs) {
             return map.value;
         };
 
+        const _validate = function (subject: any, args?: ValidateArgs) {
+            args = args || {};
+            return validate(subject, type(args.validateFunctionIndex || 1), args.compilerArgs || {strictNullChecks: true});
+        };
+
         return {
             file,
             typeMap: result.typeMap,
             type,
-            validate: function (subject: any, args?: ValidateArgs) {
-                args = args || {};
-                return validate(subject, type(args.validateFunctionIndex || 1), args.compilerArgs || {strictNullChecks: true});
+            validate: _validate,
+            expectSuccess: function (subject: any, args?: ValidateArgs) {
+                const errs = _validate(subject, args);
+                if (errs.length !== 0) throw {
+                    file: printer.printFile(file),
+                    type: type(args && args.validateFunctionIndex || 1),
+                    errs
+                };
+            },
+            expectFailure: function (subject: any, args?: ValidateArgs) {
+                const errs = _validate(subject, args);
+                if (errs.length === 0) throw {
+                    msg: "Expected invalid result",
+                    file: printer.printFile(file),
+                    type: type(args && args.validateFunctionIndex || 1)
+                };
+                
             }
         }
     } catch (e) {
@@ -103,15 +131,8 @@ export class ArrayValidator {
 
 const printer: ts.Printer = ts.createPrinter();
 export function fullScenario(args: FullScenarioArgs) {
-
-    type X = {
-        file: ts.SourceFile,
-        validate: (subject: any, args?: ValidateArgs) => Err[],
-        typeMap: {key: string, value: Type}[],
-        type: (index?: number) => Type,
-    }
     
-    function doValidation(name: ValidationScenarios, result: X) {
+    function doValidation(name: ValidationScenarios, result: Scenario) {
         
         if (!args.shouldValidate || args.shouldValidate(name)) {
             const validTest = args.validTest instanceof ArrayValidator
@@ -120,12 +141,7 @@ export function fullScenario(args: FullScenarioArgs) {
 
             validTest.forEach(valid => 
                 it("should validate correct object", () => {
-                    const errs = result.validate(valid);
-                    if (errs.length !== 0) throw {
-                        file: printer.printFile(result.file),
-                        type: result.type(),
-                        errs
-                    };
+                    result.expectSuccess(valid);
                 }));
         }
          
@@ -136,12 +152,7 @@ export function fullScenario(args: FullScenarioArgs) {
 
             invalidTest.forEach(invalid =>
                 it("should not validate incorrect object", () => {
-                    const errs = result.validate(invalid);
-                    if (errs.length === 0) throw {
-                        msg: "Expected invalid result",
-                        file: printer.printFile(result.file),
-                        type: result.type()
-                    };
+                    result.expectFailure(invalid);
                 }));
         }
     }

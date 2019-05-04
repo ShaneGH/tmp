@@ -90,11 +90,11 @@ function resolveObject(expr: ts.ObjectLiteralExpression, file: ts.SourceFile): (
 
 function resolveObjectOrArray(expr: ts.ObjectLiteralExpression | ts.ArrayLiteralExpression | UnknownExpression, file: ts.SourceFile) {
     if (expr instanceof UnknownExpression) {
-        if (propertyKeywords[expr.kind]) {
-            return (_: ResolveType) => propertyKeywords[expr.kind];
+        if (propertyKeywords[expr.syntaxKind]) {
+            return (_: ResolveType) => propertyKeywords[expr.syntaxKind];
         }
 
-        throw new Error(`Cannot resolve expression for syntax kind ${expr.kind}, ${ts.SyntaxKind[expr.kind]}`);
+        throw new Error(`Cannot resolve expression for syntax kind ${expr.syntaxKind}, ${ts.SyntaxKind[expr.syntaxKind]}`);
     }
 
     return resolveExpression(expr, file);

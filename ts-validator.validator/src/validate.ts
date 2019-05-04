@@ -51,6 +51,10 @@ function validateProperty(value: any, propertyType: PropertyType, compilerArgs: 
         return validate(value, propertyType.getType(), compilerArgs);
     }
 
+    if (propertyType instanceof MultiType) {
+        return validateMultiType(value, propertyType, compilerArgs);
+    }
+
     if (value == null) {
         return [{ property: "", error: `Value cannot be null or undefined`, value }];
     }
@@ -63,7 +67,7 @@ function validateProperty(value: any, propertyType: PropertyType, compilerArgs: 
                 if (pv == null && x.optional) {
                     return [];
                 }
-                
+
                 return validateProperty(pv, x.type, compilerArgs)
                     .map(err => ({
                         ...err,
@@ -75,21 +79,17 @@ function validateProperty(value: any, propertyType: PropertyType, compilerArgs: 
             .reduce((s, xs) => s.concat(xs), []);
     }
 
-    if (propertyType instanceof ArrayType) {
-        if (!(value instanceof Array)) {
-            return [{ property: "", error: `Value is not an array`, value }];
-        }
-
-        return value.map((x, i) =>
-            validate(x, propertyType.type, compilerArgs)
-            .map(err => ({
-                ...err,
-                property: `${err.property}[${i}]`
-            })))
-            .reduce((s, xs) => s.concat(xs), []);
+    if (!(value instanceof Array)) {
+        return [{ property: "", error: `Value is not an array`, value }];
     }
-    
-    return validateMultiType(value, propertyType, compilerArgs);
+
+    return value.map((x, i) =>
+        validate(x, propertyType.type, compilerArgs)
+        .map(err => ({
+            ...err,
+            property: `${err.property}[${i}]`
+        })))
+        .reduce((s, xs) => s.concat(xs), []);
 }
 
 function validate(subject: any, type: PropertyType | AliasedType, compilerArgs: CompilerArgs) {
