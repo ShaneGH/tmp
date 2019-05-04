@@ -73,9 +73,9 @@ export function scenario(validateCode: string, args?: ScenarioArgs): Scenario {
 
         return {
             file,
-            typeMap: result.typeMap,
             type,
             validate: _validate,
+            typeMap: result.typeMap,
             expectSuccess: function (subject: any, args?: ValidateArgs) {
                 const errs = _validate(subject, args);
                 if (errs.length !== 0) throw {
@@ -93,7 +93,7 @@ export function scenario(validateCode: string, args?: ScenarioArgs): Scenario {
                 };
                 
             }
-        }
+        };
     } catch (e) {
         console.error("Error executing code:");
         console.error(writer.toString());
@@ -132,7 +132,7 @@ export class ArrayValidator {
 const printer: ts.Printer = ts.createPrinter();
 export function fullScenario(args: FullScenarioArgs) {
     
-    function doValidation(name: ValidationScenarios, result: Scenario) {
+    function doValidation(name: ValidationScenarios, secenario: Scenario) {
         
         if (!args.shouldValidate || args.shouldValidate(name)) {
             const validTest = args.validTest instanceof ArrayValidator
@@ -141,7 +141,7 @@ export function fullScenario(args: FullScenarioArgs) {
 
             validTest.forEach(valid => 
                 it("should validate correct object", () => {
-                    result.expectSuccess(valid);
+                    secenario.expectSuccess(valid);
                 }));
         }
          
@@ -152,7 +152,7 @@ export function fullScenario(args: FullScenarioArgs) {
 
             invalidTest.forEach(invalid =>
                 it("should not validate incorrect object", () => {
-                    result.expectFailure(invalid);
+                    secenario.expectFailure(invalid);
                 }));
         }
     }
@@ -228,7 +228,7 @@ export function fullScenario(args: FullScenarioArgs) {
                 `function (t: ${args.typeDefCode}) {`,
                 `const f = (t: ${args.typeDefCode}) => {`);
 
-            const result = scenario("t", { validateSetup: setup + variable.result, validateTeardown: variable.random > 0 ? "}" : undefined });
+            const result = scenario("t", { validateSetup: setup + variable.result, validateTeardown: variable.random > 1 ? "}" : undefined });
             
             doValidation(ValidationScenarios.typedVariable, result);
         });
