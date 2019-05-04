@@ -294,7 +294,7 @@ describe("validator", function () {
     describe("recursive object tests", () => {
 
         it(`should not fail on recursive object`, () => {
-            const t = resolveType(`type T1 = {x: T1 | null}`, "T1");
+            const t = resolveType(`type T1 = {x: T1 }`, "T1");
             const subject: any = {};
             subject.x = subject;
 

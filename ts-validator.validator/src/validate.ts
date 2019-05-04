@@ -1,4 +1,14 @@
-import { PropertyKeyword, PropertyType, MultiType, MultiTypeCombinator, LazyTypeReference, TypedLookup, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
+import {
+    AliasedType,
+    CompilerArgs,
+    LazyTypeReference,
+    MultiType,
+    MultiTypeCombinator,
+    Properties,
+    PropertyKeyword,
+    PropertyType,
+    TypedLookup,
+} from 'ts-validator.core';
 
 type Err = {
     property: string
@@ -36,7 +46,7 @@ function validateMultiType(value: any, propertyType: MultiType, state: ValidateS
                 }
             }
             
-            return [{ property: "", error: `Value does not match Union type`, value }];
+            return [{ property: "", error: `Value does not match any Union type cases`, value }];
 
         default:
             throw new Error(`Invalid complex type combinator: ${propertyType.combinator}`);
