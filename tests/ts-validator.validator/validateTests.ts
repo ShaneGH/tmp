@@ -289,5 +289,16 @@ describe("validator", function () {
                 validate({y: {x: 5}}, t2, compilerArgs).length.should.not.eq(0);
             });
         });
-    })
+    });
+    
+    describe("recursive object tests", () => {
+
+        it(`should not fail on recursive object`, () => {
+            const t = resolveType(`type T1 = {x: T1 | null}`, "T1");
+            const subject: any = {};
+            subject.x = subject;
+
+            validate(subject, t, buildCompilerArgs()).length.should.eq(0);
+        });
+    });
 });

@@ -1,4 +1,4 @@
-import { PropertyKeyword, PropertyType, MultiType, MultiTypeCombinator, LazyTypeReference, ArrayType, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
+import { PropertyKeyword, PropertyType, MultiType, MultiTypeCombinator, LazyTypeReference, TypedLookup, Properties, AliasedType, CompilerArgs } from "ts-validator.core";
 
 type Err = {
     property: string
@@ -6,8 +6,13 @@ type Err = {
     value: any
 }
 
-function validateKeyword(value: any, keyword: PropertyKeyword, compilerArgs: CompilerArgs): Err[] {
-    if (value == null && !compilerArgs.strictNullChecks) {
+type ValidateState = {
+    compilerArgs: CompilerArgs
+    complete: TypedLookup<any, PropertyType[]>
+};
+
+function validateKeyword(value: any, keyword: PropertyKeyword, state: ValidateState): Err[] {
+    if (value == null && !state.compilerArgs.strictNullChecks) {
         return [];
     }
     
@@ -16,17 +21,17 @@ function validateKeyword(value: any, keyword: PropertyKeyword, compilerArgs: Com
         : [{ property: "", error: `Value is not a ${keyword.keyword}`, value }];
 }
 
-function validateMultiType(value: any, propertyType: MultiType, compilerArgs: CompilerArgs): Err[] {
+function validateMultiType(value: any, propertyType: MultiType, state: ValidateState): Err[] {
     switch (propertyType.combinator) {
         case MultiTypeCombinator.Intersection:
 
             return propertyType.types
-                .map(x => validateProperty(value, x, compilerArgs))
+                .map(x => validate(value, x, state))
                 .reduce((s, xs) => s.concat(xs), []);
             
         case MultiTypeCombinator.Union:
             for (var i = 0; i < propertyType.types.length; i++) {
-                if (validateProperty(value, propertyType.types[i], compilerArgs).length === 0) {
+                if (validate(value, propertyType.types[i], state).length === 0) {
                     return [];
                 }
             }
@@ -38,21 +43,34 @@ function validateMultiType(value: any, propertyType: MultiType, compilerArgs: Co
     }
 }
 
-function validateProperty(value: any, propertyType: PropertyType, compilerArgs: CompilerArgs): Err[] {
-    if (value == null && !compilerArgs.strictNullChecks) {
+function validate(value: any, propertyType: PropertyType, state: ValidateState): Err[] {
+
+    // check for existing validations for this object
+    const added = state.complete.add(value, [], (x, _) => x);
+    if (!added.isNew) {
+        for (var i = 0; i < added.value.length; i++) {
+            if (added.value[i].equals(propertyType)) {
+                return [];
+            }
+        }
+    } 
+    
+    added.value.push(propertyType);
+
+    if (value == null && !state.compilerArgs.strictNullChecks) {
         return [];
     }
 
     if (propertyType instanceof PropertyKeyword) {
-        return validateKeyword(value, propertyType, compilerArgs);
+        return validateKeyword(value, propertyType, state);
     }
     
     if (propertyType instanceof LazyTypeReference) {
-        return validate(value, propertyType.getType(), compilerArgs);
+        return validate(value, propertyType.getType().aliases, state);
     }
 
     if (propertyType instanceof MultiType) {
-        return validateMultiType(value, propertyType, compilerArgs);
+        return validateMultiType(value, propertyType, state);
     }
 
     if (value == null) {
@@ -68,12 +86,12 @@ function validateProperty(value: any, propertyType: PropertyType, compilerArgs: 
                     return [];
                 }
 
-                return validateProperty(pv, x.type, compilerArgs)
+                return validate(pv, x.type, state)
                     .map(err => ({
                         ...err,
-                        property: err.property + (/^[\$a-z_]([\$a-z_0-9]*)$/i.test(x.name)
+                        property: (/^[\$a-z_]([\$a-z_0-9]*)$/i.test(x.name)
                             ? "." + x.name
-                            : `["${x.name.replace(/\\/, '\\\\').replace(/"/, '\\"')}"]`)
+                            : `["${x.name.replace(/\\/, '\\\\').replace(/"/, '\\"')}"]`) + err.property
                     }));
             })
             .reduce((s, xs) => s.concat(xs), []);
@@ -84,29 +102,29 @@ function validateProperty(value: any, propertyType: PropertyType, compilerArgs: 
     }
 
     return value.map((x, i) =>
-        validate(x, propertyType.type, compilerArgs)
-        .map(err => ({
-            ...err,
-            property: `${err.property}[${i}]`
-        })))
+        validate(x, propertyType.type, state)
+            .map(err => ({
+                ...err,
+                property: `[${i}]${err.property}`
+            })))
         .reduce((s, xs) => s.concat(xs), []);
 }
 
-function validate(subject: any, type: PropertyType | AliasedType, compilerArgs: CompilerArgs) {
+function validatePublic(subject: any, type: PropertyType | AliasedType, compilerArgs: CompilerArgs) {
 
     if (type instanceof AliasedType) {
         type = type.aliases;
     }
-
-    return validateProperty(subject, type, compilerArgs)
+    
+    return validate(subject, type, { compilerArgs, complete: new TypedLookup<any, PropertyType[]>() })
         .map(x => ({
             ...x,
-            property: "value" + x.property
+            property: "$value" + x.property
         }));
 }
 
 export {
     CompilerArgs,
     Err,
-    validate
+    validatePublic as validate
 }

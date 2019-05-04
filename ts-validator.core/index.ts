@@ -1,5 +1,6 @@
 import { CompilerArgs } from './src/compilerArgs';
 import { LazyDictionary } from './src/lazyDictionary';
+import { TypedLookup } from './src/typedLookup';
 import { deserialize, serialize, WrapperKind } from './src/serializer';
 import {
     AliasedType,
@@ -19,7 +20,8 @@ export {
 }
 
 export {
-    LazyDictionary
+    LazyDictionary,
+    TypedLookup
 }
 
 export {

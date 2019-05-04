@@ -80,12 +80,8 @@ export class AliasedType {
     }
 
     equals(other: any): boolean {
-        if (other instanceof AliasedType) {
-            return this.aliases.equals(other.aliases);
-        }
-        
-        if (other instanceof LazyTypeReference) {
-            return this.aliases.equals(other.getType());
+        if (other instanceof AliasedType || other instanceof LazyTypeReference) {
+            return this.id == other.id;
         }
         
         return false;
@@ -100,12 +96,8 @@ export class LazyTypeReference {
     }
 
     equals(other: any): boolean {
-        if (other instanceof AliasedType) {
-            return this.getType().equals(other.aliases);
-        }
-        
-        if (other instanceof LazyTypeReference) {
-            return this.getType().equals(other.getType());
+        if (other instanceof AliasedType || other instanceof LazyTypeReference) {
+            return this.id == other.id;
         }
         
         return false;

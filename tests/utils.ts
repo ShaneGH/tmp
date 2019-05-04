@@ -3,7 +3,7 @@ import * as chai from 'chai';
 import { validate as validate, Err } from '../ts-validator.validator/src/validate';
 import { generateFilesAndTypes } from '../ts-validator.code-gen/src/executor';
 import { CodeWriter } from '../ts-validator.code-gen/src/clientSideValidator';
-import { CompilerArgs, serialize, Type } from 'ts-validator.core';
+import { CompilerArgs, deserialize, serialize, Type, AliasedType } from 'ts-validator.core';
 
 chai.should();
 
@@ -17,6 +17,8 @@ type ScenarioArgs = {
     validateSetup?: string
     validateTeardown?: string
     validateGeneric?: string
+    /* default: true */
+    serialize?: boolean
 }
 
 type ValidateArgs = {
@@ -54,6 +56,15 @@ export function scenario(validateCode: string, args?: ScenarioArgs): Scenario {
     try {
 
         const result = generateFilesAndTypes(file, "./theTypes", "./theFile");
+        if (args.serialize !== false
+            && result.typeMap.length === 1 
+            && result.typeMap[0].value instanceof AliasedType) {
+
+            const ser = serialize([result.typeMap[0].value]);
+
+            result.typeMap[0].value = deserialize(ser)
+                .getLazy(result.typeMap[0].value.id)();
+        }
 
         const type = (index = 1) => {
             const key = `./theFile?${index}`;
