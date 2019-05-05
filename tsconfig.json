@@ -1,6 +1,7 @@
 {
     "compilerOptions": {
-        "outDir": "./testBin"
+        "outDir": "./testBin",
+        "sourceMap": true
     },
     "extends": "./tsconfigBase.json",
     "include": [

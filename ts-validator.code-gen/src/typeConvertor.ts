@@ -187,7 +187,7 @@ function buildTypeAliasType(name: string, node: ts.TypeAliasDeclaration, state: 
                 new ArrayType(resolveTypeWithNullError(type.elementType, state)));
         } else {
 
-            throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${node.getText(state.file)}`);
+            throw new Error(`Unsupported type 3, ${ts.SyntaxKind[type.kind]}: ${node.getText(state.file)}`);
         }
     });
 
@@ -235,7 +235,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState)
     } else if  (ts.isTypeReferenceNode(type)) {
         name = type.typeName;
     } else {
-        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(state.file)}.`);
+        throw new Error(`Unsupported type 1, ${ts.SyntaxKind[type.kind]}: ${type.getText(state.file)}.`);
     }
     
     const typeName = ts.isIdentifier(name)
@@ -254,7 +254,7 @@ function resolveType(type: ts.TypeNode | ts.Identifier, state: ResolveTypeState)
         }) || null;
     } else {
         // https://github.com/ShaneGH/ts-validator/issues/16
-        throw new Error(`Unsupported type, ${ts.SyntaxKind[type.kind]}: ${type.getText(state.file)}.`);
+        throw new Error(`Unsupported type 2, ${ts.SyntaxKind[type.kind]}: ${type.getText(state.file)}.`);
     }
 }
 

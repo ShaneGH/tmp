@@ -11,6 +11,7 @@ describe("...args[]", function () {
         validateTeardown: "}"
     });
 
+    if (!sc) return;
     it("should validate correct array", () => sc.expectSuccess([5]));
     it("should validate incorrect array", () => sc.expectFailure([""]));
 });
@@ -22,6 +23,7 @@ describe("optional arg", function () {
         validateTeardown: "}"
     });
 
+    if (!sc) return;
     it("should validate arg with value", () => sc.expectSuccess(5));
     it("should validate arg without value, 1", () => sc.expectSuccess(null));
     it("should validate arg without value, 2", () => sc.expectSuccess(undefined));

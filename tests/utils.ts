@@ -28,88 +28,102 @@ type ValidateArgs = {
 
 type Scenario = {
     file: ts.SourceFile,
+    type: (index?: number) => Type,
     validate: (subject: any, args?: ValidateArgs) => Err[],
     typeMap: {key: string, value: Type}[],
-    type: (index?: number) => Type,
     expectSuccess (subject: any, args?: ValidateArgs): void,
     expectFailure (subject: any, args?: ValidateArgs) : void
 }
 
-export function scenario(validateCode: string, args?: ScenarioArgs): Scenario {
-    args = args || {};
-
-    const writer = new CodeWriter();
-
-    writer.writeLine("import { validate } from 'ts-validator.validator';");
-    writer.writeLine();
-    args.validateSetup ? writer.writeLine(args.validateSetup) : null;
-    const validateGeneric = args.validateGeneric
-        ? `<${args.validateGeneric}>`
-        : "";
-
-    writer.writeLine(`validate${validateGeneric}(${validateCode});`);
-    
-    args.validateTeardown ? writer.writeLine(args.validateTeardown) : null;
-
-    const file = createFile(writer.toString());
-
+function itShouldNotThrow<T>(f: () => T) {
     try {
-
-        const result = generateFilesAndTypes(file, "./theTypes", "./theFile");
-        if (args.serialize !== false
-            && result.typeMap.length === 1 
-            && result.typeMap[0].value instanceof AliasedType) {
-
-            const ser = serialize([result.typeMap[0].value]);
-
-            result.typeMap[0].value = deserialize(ser)
-                .getLazy(result.typeMap[0].value.id)();
-        }
-
-        const type = (index = 1) => {
-            const key = `./theFile?${index}`;
-            const map = result.typeMap.filter(x => x.key === key)[0];
-            if (!map) {
-                console.error(result.typeMap);
-                throw new Error("Could not find map for " + key);
-            }
-
-            return map.value;
-        };
-
-        const _validate = function (subject: any, args?: ValidateArgs) {
-            args = args || {};
-            return validate(subject, type(args.validateFunctionIndex || 1), args.compilerArgs || {strictNullChecks: true});
-        };
-
-        return {
-            file,
-            type,
-            validate: _validate,
-            typeMap: result.typeMap,
-            expectSuccess: function (subject: any, args?: ValidateArgs) {
-                const errs = _validate(subject, args);
-                if (errs.length !== 0) throw {
-                    file: printer.printFile(file),
-                    type: type(args && args.validateFunctionIndex || 1),
-                    errs
-                };
-            },
-            expectFailure: function (subject: any, args?: ValidateArgs) {
-                const errs = _validate(subject, args);
-                if (errs.length === 0) throw {
-                    msg: "Expected invalid result",
-                    file: printer.printFile(file),
-                    type: type(args && args.validateFunctionIndex || 1)
-                };
-                
-            }
-        };
+        return f();
     } catch (e) {
-        console.error("Error executing code:");
-        console.error(writer.toString());
-        throw e;
+        it("should not throw exception", () => {
+            throw e;
+        });
     }
+}
+
+export function scenario(validateCode: string, args?: ScenarioArgs): Scenario | undefined {
+
+    return itShouldNotThrow(() => {
+        args = args || {};
+
+        const writer = new CodeWriter();
+
+        writer.writeLine("import { validate } from 'ts-validator.validator';");
+        writer.writeLine();
+        args.validateSetup ? writer.writeLine(args.validateSetup) : null;
+        const validateGeneric = args.validateGeneric
+            ? `<${args.validateGeneric}>`
+            : "";
+
+        writer.writeLine(`validate${validateGeneric}(${validateCode});`);
+        
+        args.validateTeardown ? writer.writeLine(args.validateTeardown) : null;
+
+        try {
+            const file = createFile(writer.toString());
+            const result = generateFilesAndTypes(file, "./theTypes", "./theFile");
+
+            if (args.serialize !== false
+                && result.typeMap.length === 1 
+                && result.typeMap[0].value instanceof AliasedType) {
+
+                const ser = serialize([result.typeMap[0].value]);
+
+                result.typeMap[0].value = deserialize(ser)
+                    .getLazy(result.typeMap[0].value.id)();
+            }
+
+            const type = (index = 1) => {
+                const key = `./theFile?${index}`;
+                const map = result.typeMap.filter(x => x.key === key)[0];
+                if (!map) {
+                    console.error(result.typeMap);
+                    throw new Error("Could not find map for " + key);
+                }
+
+                return map.value;
+            };
+
+            const _validate = function (subject: any, args?: ValidateArgs): Err[] {
+                args = args || {};
+                return validate(subject, type(args.validateFunctionIndex || 1), args.compilerArgs || {strictNullChecks: true});
+            };
+
+            return {
+                file,
+                type,
+                validate: _validate,
+                typeMap: result.typeMap,
+                expectSuccess: function (subject: any, args?: ValidateArgs) {
+                    const errs = _validate(subject, args);
+                    if (errs.length !== 0) throw {
+                        file: printer.printFile(file),
+                        type: type(args && args.validateFunctionIndex || 1),
+                        errs
+                    };
+                },
+                expectFailure: function (subject: any, args?: ValidateArgs) {
+                    const errs = _validate(subject, args);
+                    if (errs.length === 0) throw {
+                        msg: "Expected invalid result",
+                        file: printer.printFile(file),
+                        type: type(args && args.validateFunctionIndex || 1)
+                    };
+                }
+            } as Scenario;
+        } catch (e) {
+            if (e.message) {
+                e.message += "\n\n" + writer.toString();
+            } else {
+                e.__file = writer.toString();
+            }
+            throw e;
+        }
+    });
 }
 
 export enum ValidationScenarios {
@@ -127,6 +141,7 @@ type FullScenarioArgs = {
     validTest: any, 
     invalidTest: any,
     setupCode?: string[],
+    teardownCode?: string[],
     typeDefCode?: string,
     shouldValidate?: (x: ValidationScenarios) => boolean,
     shouldInvalidate?: (x: ValidationScenarios) => boolean,
@@ -143,32 +158,40 @@ export class ArrayValidator {
 const printer: ts.Printer = ts.createPrinter();
 export function fullScenario(args: FullScenarioArgs) {
     
-    function doValidation(name: ValidationScenarios, secenario: Scenario) {
+    function doValidation(name: ValidationScenarios, scenario: () => Scenario | undefined) {
+
+        const shouldValidate = !args.shouldValidate || args.shouldValidate(name);
+        const shouldInvalidate = !args.shouldInvalidate || args.shouldInvalidate(name);
+        if (!shouldValidate && !shouldInvalidate) return;
         
-        if (!args.shouldValidate || args.shouldValidate(name)) {
+        const scn = scenario();
+        if (!scn) return;
+        
+        if (shouldValidate) {
             const validTest = args.validTest instanceof ArrayValidator
                 ? args.validTest.elements
                 : [args.validTest];
 
             validTest.forEach(valid => 
                 it("should validate correct object", () => {
-                    secenario.expectSuccess(valid);
+                    scn.expectSuccess(valid);
                 }));
         }
          
-        if (!args.shouldInvalidate || args.shouldInvalidate(name)) {
+        if (shouldInvalidate) {
             const invalidTest = args.invalidTest instanceof ArrayValidator
                 ? args.invalidTest.elements
                 : [args.invalidTest];
 
             invalidTest.forEach(invalid =>
                 it("should not validate incorrect object", () => {
-                    secenario.expectFailure(invalid);
+                    scn.expectFailure(invalid);
                 }));
         }
     }
     
-    const setup = (args.setupCode && (args.setupCode.join("\n") + ";\n\n")) || "";
+    const setup = (args.setupCode && (args.setupCode.join("\n") + "\n\n")) || "";
+    const teardown = (args.teardownCode && (args.teardownCode.join("\n") + ";\n\n")) || "";
 
     function random(max: number) {
         return Math.floor(Math.random() * Math.floor(max + 1));
@@ -184,12 +207,14 @@ export function fullScenario(args: FullScenarioArgs) {
 
     if (!args.skipNonTyped) {
         describe("direct validation, validate(3)", () => {
+
             const valueCode = randomScenario(
                 args.valueCode,
                 `(${args.valueCode})`).result;
 
-            const result = scenario(valueCode, {validateSetup: setup});
-            doValidation(ValidationScenarios.direct, result);
+            doValidation(
+                ValidationScenarios.direct, 
+                () => scenario(valueCode, {validateSetup: setup, validateTeardown: teardown}));
         });
 
         describe("validate variable, validate(x)", () => {
@@ -199,14 +224,15 @@ export function fullScenario(args: FullScenarioArgs) {
                 `function f (t = ${args.valueCode}) {`,
                 `function f (t = (((${args.valueCode})))) {`,
                 `const f = (t = ${args.valueCode}) => {`,
-                `const f = (t = (${args.valueCode})) => {`);
+                `const f = (t = (${args.valueCode})) => {`
+                ).result;
 
-            const result = scenario("t", { 
-                validateSetup: setup + valueCode.result, 
-                validateTeardown: valueCode.random > 1 ? "}" : ""
-            });
-
-            doValidation(ValidationScenarios.variable, result);
+            doValidation(
+                ValidationScenarios.variable, 
+                () => scenario("t", { 
+                    validateSetup: setup + valueCode, 
+                    validateTeardown: (valueCode[valueCode.length - 1] === "{" ? "}" : "") + teardown
+                }));
         });
     }
     
@@ -218,9 +244,9 @@ export function fullScenario(args: FullScenarioArgs) {
                 `(${args.valueCode}) as (${args.typeDefCode})`,
                 `<(${args.typeDefCode})>(${args.valueCode})`).result;
 
-            const result = scenario("t", { validateSetup: setup + `const t = ${variable};` });
-            
-            doValidation(ValidationScenarios.converted, result);
+            doValidation(
+                ValidationScenarios.converted, 
+                () => scenario("t", { validateSetup: setup + `const t = ${variable};`, validateTeardown: teardown }));
         });
         
         describe("validate generic in validate function, validate<string>(x)", () => {
@@ -228,8 +254,9 @@ export function fullScenario(args: FullScenarioArgs) {
                 "(" + args.typeDefCode + ")",
                 args.typeDefCode).result;
 
-            const result = scenario("null as any", {validateSetup: setup, validateGeneric});
-            doValidation(ValidationScenarios.explicit, result);
+            doValidation(
+                ValidationScenarios.explicit, 
+                () => scenario("null as any", {validateSetup: setup, validateTeardown: teardown, validateGeneric}));
         });
         
         describe("validate variable, function or lambda arg, (x: string) => validate(x)", () => {
@@ -239,9 +266,9 @@ export function fullScenario(args: FullScenarioArgs) {
                 `function (t: ${args.typeDefCode}) {`,
                 `const f = (t: ${args.typeDefCode}) => {`);
 
-            const result = scenario("t", { validateSetup: setup + variable.result, validateTeardown: variable.random > 1 ? "}" : undefined });
-            
-            doValidation(ValidationScenarios.typedVariable, result);
+            doValidation(
+                ValidationScenarios.typedVariable, 
+                () => scenario("t", { validateSetup: setup + variable.result, validateTeardown: (variable.random > 1 ? "}" : undefined) + teardown }));
         });
         
         describe("validate function or lambda result, validate(f())", () => {
@@ -259,9 +286,9 @@ export function fullScenario(args: FullScenarioArgs) {
                 `const f: (() => ${args.typeDefCode}) = null as any`
                 ).result;
 
-            const result = scenario("f()", { validateSetup: setup + variable });
-            
-            doValidation(ValidationScenarios.functionResult, result);
+            doValidation(
+                ValidationScenarios.functionResult, 
+                () => scenario("f()", { validateSetup: setup + variable, validateTeardown: teardown }))
         });
 
         describe("validate autoresolved function or lambda result, validate((() => 4)())", () => {
@@ -272,9 +299,9 @@ export function fullScenario(args: FullScenarioArgs) {
                 `((): ${args.typeDefCode} => { return null as any; })()`,
                 `((): ${args.typeDefCode} => (null as any))()`).result;
 
-            const result = scenario("t", { validateSetup: setup + `const t = ${variable};` });
-            
-            doValidation(ValidationScenarios.resolvedFunction, result);
+            doValidation(
+                ValidationScenarios.resolvedFunction, 
+                () => scenario("t", { validateSetup: setup + `const t = ${variable};`, validateTeardown: teardown }));
         });
     }
 }

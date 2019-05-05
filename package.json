@@ -12,7 +12,7 @@
     "rebuild": "npm run build-core & npm run build-validator & npm run build-code-gen & npm run build-executor & npm run build",
     "test": "mocha \"./testBin/tests/**/*.js\"",
     "build-and-test": "npm run build && npm run test",
-    "test-current": "npm run build && mocha \"C:\\Dev\\ts-validator\\testBin\\tests\\ts-validator.validator\\validateTests.js\"",
+    "test-current": "npm run build && mocha \"C:\\Dev\\ts-validator\\testBin\\tests\\ts-validator.code-gen\\callbackTests.js\"",
     "dummy": "node \"./node_modules/typescript/lib/tsc.js\" \"./build.ts\" --outDir \"./dummy\" --strict"
   },
   "author": "",
