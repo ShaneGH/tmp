@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { fullScenario, ArrayValidator, ValidationScenarios } from '../utils';
+import { fullScenario, ValidateMultiple, ValidationScenarios } from '../utils';
 
 describe("Aliased types", function () {
 
@@ -8,7 +8,7 @@ describe("Aliased types", function () {
         valueCode: '{val: "hello"}',
         typeDefCode: "I1",
         validTest: {val: "hello"},
-        invalidTest: new ArrayValidator({val: 4}, 5)
+        invalidTest: new ValidateMultiple({val: 4}, 5)
     }));
 
     describe("basic class", () => fullScenario({
@@ -16,7 +16,7 @@ describe("Aliased types", function () {
         valueCode: '{val: "hello"}',
         typeDefCode: "C1",
         validTest: {val: "hello"},
-        invalidTest: new ArrayValidator({val: 4}, 5)
+        invalidTest: new ValidateMultiple({val: 4}, 5)
     }));
 
     describe("basic type", () => fullScenario({
@@ -24,7 +24,7 @@ describe("Aliased types", function () {
         valueCode: '{val: "hello"}',
         typeDefCode: "T1",
         validTest: {val: "hello"},
-        invalidTest: new ArrayValidator({val: 4}, 5)
+        invalidTest: new ValidateMultiple({val: 4}, 5)
     }));
 
     describe("basic type", () => fullScenario({
@@ -32,7 +32,7 @@ describe("Aliased types", function () {
         valueCode: '{val: "hello"}',
         typeDefCode: "T1",
         validTest: {val: "hello"},
-        invalidTest: new ArrayValidator({val: 4}, 5)
+        invalidTest: new ValidateMultiple({val: 4}, 5)
     }));
 
     describe("property with aliased type", () => fullScenario({
@@ -72,7 +72,7 @@ describe("Aliased types", function () {
         setupCode: ["type T1 = string | number"],
         valueCode: '22',
         typeDefCode: "T1",
-        validTest: new ArrayValidator("hello", 5),
+        validTest: new ValidateMultiple("hello", 5),
         invalidTest: false,
         shouldValidate: x => x != ValidationScenarios.direct && x != ValidationScenarios.variable
     }));

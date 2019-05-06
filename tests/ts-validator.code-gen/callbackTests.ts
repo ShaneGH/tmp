@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { fullScenario, ArrayValidator, ValidationScenarios } from '../utils';
+import { fullScenario, ValidateMultiple, ValidationScenarios } from '../utils';
 
 describe("Callbacks", function () {
 
@@ -201,7 +201,7 @@ describe("Callbacks", function () {
             "f((x): ((y: any) => (z) => void) => y => z => "],
         valueCode: 'z',
         teardownCode: ["}});"],
-        validTest: new ArrayValidator(true, "", 4),
+        validTest: new ValidateMultiple(true, "", 4),
         invalidTest: null,
         shouldInvalidate: () => false
     }));

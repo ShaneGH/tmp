@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { fullScenario, ValidationScenarios, ArrayValidator } from '../utils';
+import { fullScenario, ValidationScenarios, ValidateMultiple } from '../utils';
 
 describe("Type literals", function () {
 
@@ -35,7 +35,7 @@ describe("Type literals", function () {
     describe("object with optional value", () => fullScenario({
         valueCode: '{x: 5}',
         typeDefCode: '{x?: number}',
-        validTest: new ArrayValidator({x: 5}, {}),
+        validTest: new ValidateMultiple({x: 5}, {}),
         invalidTest: {x: "hi"},
         shouldValidate: x => x != ValidationScenarios.direct && x != ValidationScenarios.variable
     }));
@@ -58,7 +58,7 @@ describe("Type literals", function () {
         valueCode: '[]',
         typeDefCode: 'number[]',
         validTest: [3, 4],
-        invalidTest: new ArrayValidator(["hi"], [3, "hi"]),
+        invalidTest: new ValidateMultiple(["hi"], [3, "hi"]),
         shouldValidate: x => x != ValidationScenarios.variable && x != ValidationScenarios.direct
     }));
 
@@ -73,15 +73,15 @@ describe("Type literals", function () {
         valueCode: '[6]',
         typeDefCode: 'number[]',
         validTest: [3, 4],
-        invalidTest: new ArrayValidator(["hi"], [3, "hi"]),
+        invalidTest: new ValidateMultiple(["hi"], [3, "hi"]),
         shouldValidate: x => x != ValidationScenarios.variable && x != ValidationScenarios.direct
     }));
 
     describe("typed array, where type is union type", () => fullScenario({
         valueCode: '[6, "6"]',
         typeDefCode: '(number | string)[]',
-        validTest: new ArrayValidator([3, "4"], [""], []),
-        invalidTest: new ArrayValidator(true),
+        validTest: new ValidateMultiple([3, "4"], [""], []),
+        invalidTest: new ValidateMultiple(true),
         shouldValidate: x => x != ValidationScenarios.variable && x != ValidationScenarios.direct
     }));
 

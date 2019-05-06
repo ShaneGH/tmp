@@ -148,7 +148,7 @@ type FullScenarioArgs = {
     skipNonTyped?: boolean
 }
 
-export class ArrayValidator {
+export class ValidateMultiple {
     elements: any[]
     constructor(...elements: any[]) {
         this.elements = elements;
@@ -168,7 +168,7 @@ export function fullScenario(args: FullScenarioArgs) {
         if (!scn) return;
         
         if (shouldValidate) {
-            const validTest = args.validTest instanceof ArrayValidator
+            const validTest = args.validTest instanceof ValidateMultiple
                 ? args.validTest.elements
                 : [args.validTest];
 
@@ -179,7 +179,7 @@ export function fullScenario(args: FullScenarioArgs) {
         }
          
         if (shouldInvalidate) {
-            const invalidTest = args.invalidTest instanceof ArrayValidator
+            const invalidTest = args.invalidTest instanceof ValidateMultiple
                 ? args.invalidTest.elements
                 : [args.invalidTest];
 
